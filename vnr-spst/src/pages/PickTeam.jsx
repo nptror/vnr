@@ -70,9 +70,8 @@ export default function PickTeam() {
     const navigate = useNavigate()
 
     const handleJoin = (team) => {
-        // TODO: lưu thông tin đội vào state/context sau
         console.log('Joined team:', team.id)
-        // navigate('/game') // sẽ bật sau khi có trang game
+        navigate('/play')
     }
 
     return (
