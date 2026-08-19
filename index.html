@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ai Là Chuyên Gia? — Trắc nghiệm tốc độ</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+        :root {
+            --bg: #15122B;
+            --bg2: #1E1A3E;
+            --panel: #241F49;
+            --line: #3A335E;
+            --text: #F2F0FA;
+            --text-dim: #B4ADD6;
+            --accent: #FFC93C;
+            --A: #E24B4A;
+            --B: #378ADD;
+            --C: #EF9F27;
+            --D: #639922;
+            --good: #5CC98B;
+            --bad: #E24B4A;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: radial-gradient(circle at 20% 0%, var(--bg2), var(--bg) 60%);
+            font-family: 'Inter', sans-serif;
+            color: var(--text);
+            padding: 20px;
+        }
+
+        h1,
+        h2,
+        h3 {
+            font-family: 'Space Grotesk', sans-serif;
+            margin: 0;
+        }
+
+        .wrap {
+            max-width: 760px;
+            margin: 0 auto;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 40px 10px 20px;
+        }
+
+        .hero h1 {
+            font-size: 34px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .hero .tag {
+            color: var(--text-dim);
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        .choice-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 28px;
+        }
+
+        @media(max-width:520px) {
+            .choice-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .role-card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 26px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .role-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .role-card .ic {
+            font-size: 34px;
+            margin-bottom: 10px;
+        }
+
+        .role-card h3 {
+            font-size: 17px;
+            margin-bottom: 6px;
+        }
+
+        .role-card p {
+            color: var(--text-dim);
+            font-size: 13px;
+            margin: 0;
+        }
+
+        .panel-box {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 24px;
+            margin-top: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-dim);
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        input[type=text] {
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: var(--bg2);
+            color: var(--text);
+            font-size: 16px;
+            font-family: 'Inter', sans-serif;
+            margin-bottom: 16px;
+        }
+
+        input[type=text]:focus {
+            outline: 2px solid var(--accent);
+            border-color: var(--accent);
+        }
+
+        button {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            font-size: 15px;
+            border-radius: 10px;
+            border: none;
+            padding: 13px 20px;
+            cursor: pointer;
+            background: var(--accent);
+            color: #2B2306;
+            width: 100%;
+        }
+
+        button:hover {
+            filter: brightness(1.08);
+        }
+
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        button.ghost {
+            background: transparent;
+            border: 1px solid var(--line);
+            color: var(--text);
+        }
+
+        button.ghost:hover {
+            background: var(--bg2);
+        }
+
+        .err {
+            color: var(--bad);
+            font-size: 13px;
+            margin: -8px 0 12px;
+            display: none;
+        }
+
+        .err.show {
+            display: block;
+        }
+
+        .code-display {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: 56px;
+            letter-spacing: 10px;
+            text-align: center;
+            color: var(--accent);
+            margin: 16px 0;
+        }
+
+        .code-hint {
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .player-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 18px 0;
+            min-height: 36px;
+        }
+
+        .pill {
+            background: var(--bg2);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .qbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .qnum {
+            font-size: 13px;
+            color: var(--text-dim);
+            font-weight: 600;
+        }
+
+        .timer {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: 22px;
+            color: var(--accent);
+        }
+
+        .timer-bar {
+            height: 6px;
+            background: var(--bg2);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .timer-fill {
+            height: 100%;
+            background: var(--accent);
+            width: 100%;
+            transition: width 0.2s linear;
+        }
+
+        .qtext {
+            font-size: 20px;
+            font-weight: 600;
+            line-height: 1.5;
+            margin-bottom: 20px;
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        .opt-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        @media(max-width:480px) {
+            .opt-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .opt {
+            border: none;
+            border-radius: 12px;
+            padding: 20px 16px;
+            text-align: left;
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 64px;
+        }
+
+        .opt .k {
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+
+        .opt-A {
+            background: var(--A);
+        }
+
+        .opt-B {
+            background: var(--B);
+        }
+
+        .opt-C {
+            background: var(--C);
+            color: #3A2A00;
+        }
+
+        .opt-D {
+            background: var(--D);
+        }
+
+        .opt.dim {
+            opacity: 0.35;
+        }
+
+        .opt.picked {
+            outline: 3px solid #fff;
+        }
+
+        .opt.correct {
+            outline: 4px solid var(--good);
+        }
+
+        .opt.wrong {
+            outline: 4px solid var(--bad);
+        }
+
+        .waiting {
+            text-align: center;
+            padding: 40px 10px;
+            color: var(--text-dim);
+        }
+
+        .waiting .big {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        .result-badge {
+            text-align: center;
+            padding: 26px 10px;
+        }
+
+        .result-badge.ok .pts {
+            color: var(--good);
+        }
+
+        .result-badge.no .pts {
+            color: var(--bad);
+        }
+
+        .result-badge .pts {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 38px;
+            font-weight: 700;
+        }
+
+        .result-badge .lbl {
+            color: var(--text-dim);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .lb-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            background: var(--bg2);
+            border-radius: 10px;
+            margin-bottom: 8px;
+        }
+
+        .lb-rank {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: 15px;
+            width: 24px;
+            color: var(--accent);
+        }
+
+        .lb-name {
+            flex: 1;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .lb-score {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        .podium-top {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .podium-top .crown {
+            font-size: 30px;
+        }
+
+        .podium-top .nm {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 26px;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .hostbar {
+            display: flex;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .footnote {
+            color: var(--text-dim);
+            font-size: 12px;
+            text-align: center;
+            margin-top: 18px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+
+        <div id="screen-role">
+            <div class="hero">
+                <h1>Ai Là Chuyên Gia?</h1>
+                <div class="tag">Trắc nghiệm tốc độ · Đường lối công nghiệp hóa, hiện đại hóa (Đại hội VIII, IX)</div>
+            </div>
+            <div class="choice-grid">
+                <div class="role-card" id="pickHost">
+                    <div class="ic">🖥️</div>
+                    <h3>Người dẫn chương trình</h3>
+                    <p>Mở trên máy chiếu / laptop trước lớp. Tạo mã phòng, điều khiển câu hỏi.</p>
+                </div>
+                <div class="role-card" id="pickPlayer">
+                    <div class="ic">📱</div>
+                    <h3>Người chơi</h3>
+                    <p>Mở trên điện thoại. Nhập mã phòng do người dẫn cung cấp để tham gia.</p>
+                </div>
+            </div>
+            <div class="footnote">Cả lớp mở cùng một link/artifact này — dữ liệu điểm số được đồng bộ dùng chung.</div>
+        </div>
+
+        <div id="screen-host-setup" class="hidden">
+            <div class="panel-box">
+                <h2 style="margin-bottom:14px;">Tạo phòng chơi</h2>
+                <div class="code-display" id="hostCode">----</div>
+                <div class="code-hint">Đọc mã này cho cả lớp để nhập vào điện thoại</div>
+                <label>Số người chơi đã tham gia</label>
+                <div class="player-list" id="hostPlayerList"></div>
+                <button id="startGameBtn">Bắt đầu (<span id="startCount">0</span> người chơi)</button>
+                <button class="ghost" style="margin-top:10px;" id="backFromHostSetup">Quay lại</button>
+            </div>
+        </div>
+
+        <div id="screen-host-play" class="hidden">
+            <div class="panel-box">
+                <div class="qbar">
+                    <span class="qnum" id="hQnum">Câu 1/10</span>
+                    <span class="timer" id="hTimer">20</span>
+                </div>
+                <div class="timer-bar">
+                    <div class="timer-fill" id="hTimerFill"></div>
+                </div>
+                <div class="qtext" id="hQtext"></div>
+                <div class="opt-grid" id="hOpts"></div>
+                <div class="hostbar">
+                    <button id="hRevealBtn">Xem đáp án ngay</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-host-reveal" class="hidden">
+            <div class="panel-box">
+                <div class="qnum" id="hrQnum" style="margin-bottom:10px;"></div>
+                <div class="qtext" id="hrQtext"></div>
+                <div class="opt-grid" id="hrOpts"></div>
+                <h3 style="margin:22px 0 10px;font-size:15px;color:var(--text-dim);">Bảng xếp hạng</h3>
+                <div id="hrLeaderboard"></div>
+                <button id="hNextBtn" style="margin-top:16px;">Câu tiếp theo</button>
+            </div>
+        </div>
+
+        <div id="screen-host-end" class="hidden">
+            <div class="panel-box">
+                <div class="podium-top">
+                    <div class="crown">🏆</div>
+                    <div class="nm" id="heWinner">—</div>
+                </div>
+                <div id="heLeaderboard"></div>
+                <button class="ghost" style="margin-top:16px;" id="backHomeHost">Về trang chủ</button>
+            </div>
+        </div>
+
+        <div id="screen-player-join" class="hidden">
+            <div class="panel-box">
+                <h2 style="margin-bottom:16px;">Tham gia phòng</h2>
+                <label>Mã phòng (4 số)</label>
+                <input type="text" id="joinCode" maxlength="4" placeholder="1234" inputmode="numeric">
+                <label>Tên của bạn</label>
+                <input type="text" id="joinName" maxlength="20" placeholder="Nguyễn Văn A">
+                <div class="err" id="joinErr">Vui lòng nhập đủ mã phòng và tên.</div>
+                <button id="joinBtn">Tham gia</button>
+                <button class="ghost" style="margin-top:10px;" id="backFromPlayerJoin">Quay lại</button>
+            </div>
+        </div>
+
+        <div id="screen-player-wait" class="hidden">
+            <div class="waiting">
+                <div class="big">⏳</div>
+                <div id="waitName" style="font-weight:600;font-size:17px;margin-bottom:6px;"></div>
+                <div>Đã vào phòng. Chờ người dẫn bắt đầu…</div>
+            </div>
+        </div>
+
+        <div id="screen-player-question" class="hidden">
+            <div class="panel-box">
+                <div class="qbar">
+                    <span class="qnum" id="pQnum"></span>
+                    <span class="timer" id="pTimer"></span>
+                </div>
+                <div class="timer-bar">
+                    <div class="timer-fill" id="pTimerFill"></div>
+                </div>
+                <div class="qtext" id="pQtext"></div>
+                <div class="opt-grid" id="pOpts"></div>
+            </div>
+        </div>
+
+        <div id="screen-player-locked" class="hidden">
+            <div class="waiting">
+                <div class="big">✅</div>
+                <div>Đã gửi câu trả lời. Chờ kết quả…</div>
+            </div>
+        </div>
+
+        <div id="screen-player-result" class="hidden">
+            <div class="panel-box">
+                <div class="result-badge" id="prBadge">
+                    <div class="pts" id="prPts">+0</div>
+                    <div class="lbl" id="prLabel">Sai rồi</div>
+                </div>
+                <h3 style="margin:8px 0 10px;font-size:14px;color:var(--text-dim);">Bảng xếp hạng</h3>
+                <div id="prLeaderboard"></div>
+            </div>
+        </div>
+
+        <div id="screen-player-end" class="hidden">
+            <div class="panel-box">
+                <div class="podium-top">
+                    <div class="crown">🏁</div>
+                    <div class="nm" id="peResult">—</div>
+                </div>
+                <div id="peLeaderboard"></div>
+                <button class="ghost" style="margin-top:16px;" id="backHomePlayer">Về trang chủ</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const QUESTIONS = [
+            {
+                q: "Đại hội nào của Đảng khởi xướng đường lối Đổi mới toàn diện đất nước?",
+                opts: ["Đại hội V", "Đại hội VI", "Đại hội VII", "Đại hội VIII"], correct: 1
+            },
+            {
+                q: "Đại hội VI diễn ra vào tháng, năm nào?",
+                opts: ["12/1986", "6/1991", "6/1996", "4/2001"], correct: 0
+            },
+            {
+                q: "Đại hội VIII (6/1996) khẳng định nước ta đã ra khỏi tình trạng gì?",
+                opts: ["Chiến tranh", "Khủng hoảng kinh tế - xã hội", "Bao vây cấm vận", "Lạm phát phi mã"], correct: 1
+            },
+            {
+                q: "Đại hội VIII xác định nhiệm vụ trung tâm của thời kỳ phát triển mới là gì?",
+                opts: ["Ổn định giá cả", "Đẩy mạnh công nghiệp hóa, hiện đại hóa", "Mở rộng ngoại giao", "Cải cách ruộng đất"], correct: 1
+            },
+            {
+                q: "Đại hội VIII đặt mục tiêu đến khoảng năm nào nước ta cơ bản trở thành nước công nghiệp?",
+                opts: ["2010", "2015", "2020", "2030"], correct: 2
+            },
+            {
+                q: "Đại hội IX của Đảng diễn ra vào tháng, năm nào?",
+                opts: ["4/2001", "6/1996", "12/1986", "4/2006"], correct: 0
+            },
+            {
+                q: "Đại hội IX lần đầu tiên chính thức đưa ra khái niệm nào?",
+                opts: ["Kinh tế kế hoạch hóa tập trung", "Kinh tế thị trường định hướng xã hội chủ nghĩa", "Kinh tế tư bản nhà nước", "Kinh tế tự cấp tự túc"], correct: 1
+            },
+            {
+                q: "Tốc độ tăng trưởng GDP bình quân của Việt Nam giai đoạn 1996–2000 là khoảng bao nhiêu?",
+                opts: ["3%/năm", "5%/năm", "7%/năm", "10%/năm"], correct: 2
+            },
+            {
+                q: "Tốc độ tăng trưởng GDP bình quân giai đoạn 2001–2005 là khoảng bao nhiêu?",
+                opts: ["5%/năm", "6%/năm", "7,5%/năm", "9%/năm"], correct: 2
+            },
+            {
+                q: "Cơ quan nào công bố số liệu thống kê chính thức về kinh tế - xã hội Việt Nam?",
+                opts: ["Ngân hàng Nhà nước", "Tổng cục Thống kê", "Bộ Ngoại giao", "Viện Hàn lâm Khoa học xã hội"], correct: 1
+            }
+        ];
+
+        const DURATION = 20;
+        const LETTERS = ["A", "B", "C", "D"];
+        const OPT_CLASS = ["opt-A", "opt-B", "opt-C", "opt-D"];
+
+        function show(id) {
+            document.querySelectorAll('[id^="screen-"]').forEach(el => el.classList.add("hidden"));
+            document.getElementById(id).classList.remove("hidden");
+        }
+
+        function uid() { return Math.random().toString(36).slice(2, 10); }
+        function genCode() { return String(Math.floor(1000 + Math.random() * 9000)); }
+
+        async function sGet(key) {
+            try {
+                const raw = localStorage.getItem(key);
+                return raw ? JSON.parse(raw) : null;
+            } catch (e) { return null; }
+        }
+        async function sSet(key, val) {
+            try {
+                localStorage.setItem(key, JSON.stringify(val));
+                return true;
+            } catch (e) { console.error("storage set failed", e); return false; }
+        }
+
+        let myId = uid();
+        let myName = "";
+        let roomCode = "";
+        let role = null;
+        let pollTimer = null;
+        let countdownTimer = null;
+        let answeredThisQ = false;
+        let lastSeenQIndex = -1;
+        let lastSeenStatus = "";
+
+        function playersKey(c) { return "game:" + c + ":players"; }
+        function stateKey(c) { return "game:" + c + ":state"; }
+        function answerKey(c, qi, pid) { return "game:" + c + ":ans:" + qi + ":" + pid; }
+
+        document.getElementById("pickHost").addEventListener("click", async () => {
+            role = "host";
+            roomCode = genCode();
+            document.getElementById("hostCode").textContent = roomCode;
+            await sSet(playersKey(roomCode), []);
+            await sSet(stateKey(roomCode), { status: "lobby", qIndex: -1, startedAt: 0, duration: DURATION, total: QUESTIONS.length });
+            show("screen-host-setup");
+            hostPollLobby();
+        });
+
+        document.getElementById("backFromHostSetup").addEventListener("click", () => {
+            clearInterval(pollTimer);
+            show("screen-role");
+        });
+
+        function hostPollLobby() {
+            clearInterval(pollTimer);
+            pollTimer = setInterval(async () => {
+                const players = await sGet(playersKey(roomCode)) || [];
+                document.getElementById("startCount").textContent = players.length;
+                const list = document.getElementById("hostPlayerList");
+                list.innerHTML = "";
+                players.forEach(p => {
+                    const pill = document.createElement("div");
+                    pill.className = "pill";
+                    pill.textContent = p.name;
+                    list.appendChild(pill);
+                });
+            }, 1200);
+        }
+
+        document.getElementById("startGameBtn").addEventListener("click", async () => {
+            clearInterval(pollTimer);
+            await goToQuestionHost(0);
+        });
+
+        async function goToQuestionHost(qi) {
+            const startedAt = Date.now();
+            await sSet(stateKey(roomCode), { status: "question", qIndex: qi, startedAt, duration: DURATION, total: QUESTIONS.length });
+            renderHostQuestion(qi, startedAt);
+            show("screen-host-play");
+        }
+
+        function renderHostQuestion(qi, startedAt) {
+            const item = QUESTIONS[qi];
+            document.getElementById("hQnum").textContent = "Câu " + (qi + 1) + "/" + QUESTIONS.length;
+            document.getElementById("hQtext").textContent = item.q;
+            const grid = document.getElementById("hOpts");
+            grid.innerHTML = "";
+            item.opts.forEach((opt, i) => {
+                const d = document.createElement("div");
+                d.className = "opt " + OPT_CLASS[i];
+                d.innerHTML = '<span class="k">' + LETTERS[i] + '</span><span>' + opt + '</span>';
+                grid.appendChild(d);
+            });
+            clearInterval(countdownTimer);
+            countdownTimer = setInterval(() => {
+                const elapsed = (Date.now() - startedAt) / 1000;
+                const remain = Math.max(0, DURATION - elapsed);
+                document.getElementById("hTimer").textContent = Math.ceil(remain);
+                document.getElementById("hTimerFill").style.width = (remain / DURATION * 100) + "%";
+                if (remain <= 0) {
+                    clearInterval(countdownTimer);
+                    revealHost(qi, startedAt);
+                }
+            }, 150);
+        }
+
+        document.getElementById("hRevealBtn").addEventListener("click", () => {
+            clearInterval(countdownTimer);
+            const st = document.getElementById("hQnum").textContent;
+            const qi = parseInt(st.match(/\d+/)[0]) - 1;
+            revealHost(qi, null);
+        });
+
+        async function revealHost(qi, startedAt) {
+            await sSet(stateKey(roomCode), { status: "reveal", qIndex: qi, startedAt: startedAt || 0, duration: DURATION, total: QUESTIONS.length });
+            const players = await sGet(playersKey(roomCode)) || [];
+            for (const p of players) {
+                const a = await sGet(answerKey(roomCode, qi, p.id));
+                let pts = 0;
+                if (a && a.choice === QUESTIONS[qi].correct) {
+                    const frac = Math.max(0, Math.min(1, a.timeMs / (DURATION * 1000)));
+                    pts = Math.round(1000 - frac * 500);
+                }
+                p.score = (p.score || 0) + pts;
+                p.lastPts = pts;
+            }
+            await sSet(playersKey(roomCode), players);
+
+            const item = QUESTIONS[qi];
+            document.getElementById("hrQnum").textContent = "Câu " + (qi + 1) + "/" + QUESTIONS.length + " — Đáp án";
+            document.getElementById("hrQtext").textContent = item.q;
+            const grid = document.getElementById("hrOpts");
+            grid.innerHTML = "";
+            item.opts.forEach((opt, i) => {
+                const d = document.createElement("div");
+                d.className = "opt " + OPT_CLASS[i] + (i === item.correct ? " correct" : " dim");
+                d.innerHTML = '<span class="k">' + LETTERS[i] + '</span><span>' + opt + '</span>';
+                grid.appendChild(d);
+            });
+            renderLeaderboard("hrLeaderboard", players);
+            document.getElementById("hNextBtn").textContent = (qi + 1 >= QUESTIONS.length) ? "Xem kết quả cuối" : "Câu tiếp theo";
+            show("screen-host-reveal");
+        }
+
+        function renderLeaderboard(elId, players, limit) {
+            const sorted = players.slice().sort((a, b) => (b.score || 0) - (a.score || 0));
+            const shown = limit ? sorted.slice(0, limit) : sorted;
+            const el = document.getElementById(elId);
+            el.innerHTML = "";
+            shown.forEach((p, i) => {
+                const row = document.createElement("div");
+                row.className = "lb-row";
+                row.innerHTML = '<span class="lb-rank">' + (i + 1) + '</span><span class="lb-name">' + p.name + '</span><span class="lb-score">' + (p.score || 0) + '</span>';
+                el.appendChild(row);
+            });
+        }
+
+        document.getElementById("hNextBtn").addEventListener("click", async () => {
+            const cur = QUESTIONS.length;
+            const qnumText = document.getElementById("hrQnum").textContent;
+            const qi = parseInt(qnumText.match(/\d+/)[0]) - 1;
+            if (qi + 1 >= QUESTIONS.length) {
+                await sSet(stateKey(roomCode), { status: "end", qIndex: qi, startedAt: 0, duration: DURATION, total: QUESTIONS.length });
+                const players = await sGet(playersKey(roomCode)) || [];
+                const sorted = players.slice().sort((a, b) => (b.score || 0) - (a.score || 0));
+                document.getElementById("heWinner").textContent = sorted[0] ? sorted[0].name : "—";
+                renderLeaderboard("heLeaderboard", players);
+                show("screen-host-end");
+            } else {
+                await goToQuestionHost(qi + 1);
+            }
+        });
+
+        document.getElementById("backHomeHost").addEventListener("click", () => {
+            show("screen-role");
+        });
+
+        document.getElementById("pickPlayer").addEventListener("click", () => {
+            role = "player";
+            show("screen-player-join");
+        });
+
+        document.getElementById("backFromPlayerJoin").addEventListener("click", () => {
+            show("screen-role");
+        });
+
+        document.getElementById("joinBtn").addEventListener("click", async () => {
+            const code = document.getElementById("joinCode").value.trim();
+            const name = document.getElementById("joinName").value.trim();
+            const err = document.getElementById("joinErr");
+            if (!/^\d{4}$/.test(code) || !name) {
+                err.classList.add("show");
+                return;
+            }
+            err.classList.remove("show");
+            const st = await sGet(stateKey(code));
+            if (!st) {
+                err.textContent = "Không tìm thấy phòng với mã này. Kiểm tra lại mã.";
+                err.classList.add("show");
+                return;
+            }
+            roomCode = code;
+            myName = name;
+            const players = await sGet(playersKey(roomCode)) || [];
+            players.push({ id: myId, name: myName, score: 0 });
+            await sSet(playersKey(roomCode), players);
+            document.getElementById("waitName").textContent = "Xin chào, " + myName;
+            show("screen-player-wait");
+            playerPoll();
+        });
+
+        function playerPoll() {
+            clearInterval(pollTimer);
+            pollTimer = setInterval(async () => {
+                const st = await sGet(stateKey(roomCode));
+                if (!st) return;
+                if (st.status === "question") {
+                    if (st.qIndex !== lastSeenQIndex || lastSeenStatus !== "question") {
+                        lastSeenQIndex = st.qIndex;
+                        lastSeenStatus = "question";
+                        answeredThisQ = false;
+                        renderPlayerQuestion(st.qIndex, st.startedAt);
+                    }
+                } else if (st.status === "reveal") {
+                    if (lastSeenStatus !== "reveal" || lastSeenQIndex !== st.qIndex) {
+                        lastSeenStatus = "reveal";
+                        lastSeenQIndex = st.qIndex;
+                        clearInterval(countdownTimer);
+                        await renderPlayerReveal(st.qIndex);
+                    }
+                } else if (st.status === "end") {
+                    if (lastSeenStatus !== "end") {
+                        lastSeenStatus = "end";
+                        clearInterval(countdownTimer);
+                        await renderPlayerEnd();
+                    }
+                }
+            }, 1000);
+        }
+
+        function renderPlayerQuestion(qi, startedAt) {
+            const item = QUESTIONS[qi];
+            document.getElementById("pQnum").textContent = "Câu " + (qi + 1) + "/" + QUESTIONS.length;
+            document.getElementById("pQtext").textContent = item.q;
+            const grid = document.getElementById("pOpts");
+            grid.innerHTML = "";
+            item.opts.forEach((opt, i) => {
+                const d = document.createElement("div");
+                d.className = "opt " + OPT_CLASS[i];
+                d.innerHTML = '<span class="k">' + LETTERS[i] + '</span><span>' + opt + '</span>';
+                d.addEventListener("click", () => submitAnswer(qi, i, startedAt));
+                grid.appendChild(d);
+            });
+            show("screen-player-question");
+            clearInterval(countdownTimer);
+            countdownTimer = setInterval(() => {
+                const elapsed = (Date.now() - startedAt) / 1000;
+                const remain = Math.max(0, DURATION - elapsed);
+                document.getElementById("pTimer").textContent = Math.ceil(remain);
+                document.getElementById("pTimerFill").style.width = (remain / DURATION * 100) + "%";
+                if (remain <= 0) { clearInterval(countdownTimer); }
+            }, 150);
+        }
+
+        async function submitAnswer(qi, choiceIdx, startedAt) {
+            if (answeredThisQ) return;
+            answeredThisQ = true;
+            const timeMs = Date.now() - startedAt;
+            await sSet(answerKey(roomCode, qi, myId), { choice: choiceIdx, timeMs });
+            const opts = document.querySelectorAll("#pOpts .opt");
+            opts.forEach((o, i) => {
+                if (i === choiceIdx) o.classList.add("picked");
+                else o.classList.add("dim");
+            });
+            show("screen-player-locked");
+        }
+
+        async function renderPlayerReveal(qi) {
+            const players = await sGet(playersKey(roomCode)) || [];
+            const me = players.find(p => p.id === myId);
+            const pts = me ? (me.lastPts || 0) : 0;
+            const badge = document.getElementById("prBadge");
+            badge.className = "result-badge " + (pts > 0 ? "ok" : "no");
+            document.getElementById("prPts").textContent = (pts > 0 ? "+" : "") + pts;
+            document.getElementById("prLabel").textContent = pts > 0 ? "Chính xác!" : "Chưa đúng";
+            renderLeaderboard("prLeaderboard", players, 5);
+            show("screen-player-result");
+        }
+
+        async function renderPlayerEnd() {
+            const players = await sGet(playersKey(roomCode)) || [];
+            const sorted = players.slice().sort((a, b) => (b.score || 0) - (a.score || 0));
+            const myRank = sorted.findIndex(p => p.id === myId) + 1;
+            const me = sorted.find(p => p.id === myId);
+            document.getElementById("peResult").textContent = myRank > 0 ? ("Hạng " + myRank + " — " + (me ? me.score : 0) + " điểm") : "Đã kết thúc";
+            renderLeaderboard("peLeaderboard", players);
+            show("screen-player-end");
+        }
+
+        document.getElementById("backHomePlayer").addEventListener("click", () => {
+            clearInterval(pollTimer);
+            clearInterval(countdownTimer);
+            lastSeenStatus = ""; lastSeenQIndex = -1;
+            show("screen-role");
+        });
+
+        show("screen-role");
+    </script>
+</body>
+
+</html>
