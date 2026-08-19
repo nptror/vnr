@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-// ─── Dữ liệu mẫu (sau sẽ truyền qua Context/props) ───────────
-const SAMPLE_TEAMS = [
+// ─── Danh sách gốc (7 đội) ────────────────────────────────────
+const ALL_TEAMS = [
   { id: 'red',    name: 'Đội Đỏ',   color: '#7A2430' },
   { id: 'blue',   name: 'Đội Xanh', color: '#1F4E66' },
   { id: 'yellow', name: 'Đội Vàng', color: '#B8860B' },
@@ -530,8 +530,44 @@ function formatTime(sec) {
   return `${m}:${s}`
 }
 
+function broadcastDiceEvent(data) {
+  try {
+    const channel = new BroadcastChannel('vnr_dice_sync');
+    channel.postMessage(data);
+    channel.close();
+  } catch (e) {}
+  try {
+    localStorage.setItem('vnr_dice_event', JSON.stringify({ ...data, _ts: Date.now() }));
+  } catch (e) {}
+}
+
+function broadcastPlayAnswer(data) {
+  const payload = { ...data, _ts: Date.now() };
+  try {
+    const channel = new BroadcastChannel('vnr_game_sync');
+    channel.postMessage(payload);
+    channel.close();
+  } catch (e) {}
+  try {
+    localStorage.setItem('vnr_play_answer', JSON.stringify(payload));
+  } catch (e) {}
+}
+
 export default function Play() {
   const navigate = useNavigate()
+
+  // ── Teams state (synced from Host broadcast) ──
+  const [teams, setTeams] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vnr_team_order')
+      if (saved) return JSON.parse(saved)
+    } catch (e) {}
+    return ALL_TEAMS
+  })
+
+  // ── Question state (synced from Host) ──
+  const [currentQuestion, setCurrentQuestion] = useState(null)  // null = chưa có câu hỏi
+  const [questionMeta, setQuestionMeta] = useState(null)        // { num, cat }
 
   // ── Game state ──
   const [currentTeamIdx, setCurrentTeamIdx] = useState(0)
@@ -550,7 +586,7 @@ export default function Play() {
   const wrapperRef = useRef(null)
   const shadowRef = useRef(null)
 
-  const currentTeam = SAMPLE_TEAMS[currentTeamIdx]
+  const currentTeam = teams[currentTeamIdx] ?? ALL_TEAMS[0]
 
   // ── Timer ──
   useEffect(() => {
@@ -578,13 +614,20 @@ export default function Play() {
   // ── Select option ──
   const handleSelect = (idx) => {
     if (revealed || selected !== null) return
+    if (!currentQuestion) return
     setSelected(idx)
     clearInterval(timerRef.current)
-    const isCorrect = idx === SAMPLE_QUESTION.correct
+    const isCorrect = idx === currentQuestion.correct
     setResult(isCorrect ? 'correct' : 'wrong')
     setRevealed(true)
+    // Gửi đáp án về Host
+    broadcastPlayAnswer({
+      type: 'PLAY_ANSWER',
+      optionIdx: idx,
+      teamIdx: currentTeamIdx,
+      isCorrect,
+    })
     if (isCorrect) {
-      // Mở dice modal sau 400ms để animation đáp án hiện trước
       setTimeout(() => openDice(), 400)
     }
   }
@@ -597,6 +640,107 @@ export default function Play() {
     if (cubeRef.current) cubeRef.current.style.transform = 'rotateX(0deg) rotateY(0deg)'
     setShowDice(true)
   }
+
+  // Listen for sync events (in case roll is triggered externally)
+  useEffect(() => {
+    let channel;
+    const handleSync = (data) => {
+      if (data?.type === 'DICE_ROLL_START') {
+        const { score, rx, ry } = data;
+        setDiceValue(null);
+        setDiceVisible(false);
+        setDiceRolling(true);
+        setShowDice(true);
+        if (cubeRef.current) cubeRef.current.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
+        if (wrapperRef.current) wrapperRef.current.classList.add('play-dice-bouncing');
+        if (shadowRef.current) shadowRef.current.classList.add('play-shadow-rolling');
+        setTimeout(() => {
+          setDiceValue(score);
+          setDiceVisible(true);
+          setDiceRolling(false);
+          if (wrapperRef.current) wrapperRef.current.classList.remove('play-dice-bouncing');
+          if (shadowRef.current) shadowRef.current.classList.remove('play-shadow-rolling');
+        }, 1500);
+
+      } else if (data?.type === 'DICE_CONFIRM') {
+        setShowDice(false);
+
+      } else if (data?.type === 'QUESTION_OPEN') {
+        // Nhận câu hỏi từ Host
+        const { card, currentTeamIdx: teamIdx, teams: newTeams } = data;
+        setCurrentQuestion(card);
+        setQuestionMeta({ num: card.num, cat: card.cat });
+        if (newTeams) setTeams(newTeams);
+        setCurrentTeamIdx(teamIdx);
+        setSelected(null);
+        setRevealed(false);
+        setResult(null);
+        setTimeLeft(ANSWER_TIME);
+
+      } else if (data?.type === 'ANSWER_RESULT') {
+        // Host xử lý xong, cập nhật trạng thái Play
+        if (data.nextTeamIdx !== undefined) {
+          // Sai, chuyển lượt
+          setCurrentTeamIdx(data.nextTeamIdx);
+          setSelected(null);
+          setRevealed(false);
+          setResult(null);
+          setTimeLeft(ANSWER_TIME);
+        }
+        if (data.noWinner) {
+          // Không ai đúng
+          setResult('timeout');
+        }
+
+      } else if (data?.type === 'GAME_RESET') {
+        if (Array.isArray(data.teams)) {
+          setTeams(data.teams);
+          setCurrentTeamIdx(0);
+          setCurrentQuestion(null);
+          setQuestionMeta(null);
+          setSelected(null);
+          setRevealed(false);
+          setResult(null);
+          setTimeLeft(ANSWER_TIME);
+        }
+      }
+    };
+
+    try {
+      channel = new BroadcastChannel('vnr_dice_sync');
+      channel.onmessage = (e) => {
+        if (e.data) handleSync(e.data);
+      };
+    } catch (e) {}
+
+    const handleStorage = (e) => {
+      if (e.key === 'vnr_dice_event' && e.newValue) {
+        try {
+          const data = JSON.parse(e.newValue);
+          handleSync(data);
+        } catch (err) {}
+      }
+      if (e.key === 'vnr_game_event' && e.newValue) {
+        try {
+          const data = JSON.parse(e.newValue);
+          handleSync(data);
+        } catch (err) {}
+      }
+    };
+    // Lắng nghe cả 2 channel (dice + game)
+    let gameChannel;
+    try {
+      gameChannel = new BroadcastChannel('vnr_game_sync');
+      gameChannel.onmessage = (e) => { if (e.data) handleSync(e.data); };
+    } catch (e) {}
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      if (channel) channel.close();
+      if (gameChannel) gameChannel.close();
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
 
   const handleRollDice = () => {
     if (diceRolling || diceValue !== null) return
@@ -614,6 +758,18 @@ export default function Play() {
       case 2: rx -= 90;  break
       case 5: rx += 90;  break
     }
+
+    // Broadcast to Host so Host modal opens and animates simultaneously
+    broadcastDiceEvent({
+      type: 'DICE_ROLL_START',
+      face,
+      score,
+      rx,
+      ry,
+      teamIdx: currentTeamIdx,
+      teamName: teams[currentTeamIdx]?.name ?? currentTeam?.name
+    })
+
     if (wrapperRef.current) wrapperRef.current.classList.add('play-dice-bouncing')
     if (shadowRef.current)  shadowRef.current.classList.add('play-shadow-rolling')
     if (cubeRef.current)    cubeRef.current.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`
@@ -629,19 +785,25 @@ export default function Play() {
 
   const handleDiceConfirm = () => {
     setShowDice(false)
+    broadcastDiceEvent({
+      type: 'DICE_CONFIRM',
+      teamIdx: currentTeamIdx,
+      score: diceValue
+    })
   }
 
   // ── Option style ──
   const optClass = (idx) => {
     if (!revealed) return selected === idx ? 'selected' : ''
-    if (idx === SAMPLE_QUESTION.correct) return 'correct'
-    if (idx === selected && idx !== SAMPLE_QUESTION.correct) return 'wrong'
+    if (!currentQuestion) return ''
+    if (idx === currentQuestion.correct) return 'correct'
+    if (idx === selected && idx !== currentQuestion.correct) return 'wrong'
     return ''
   }
 
   // ── Next team ──
   const handleNext = () => {
-    const nextIdx = (currentTeamIdx + 1) % SAMPLE_TEAMS.length
+    const nextIdx = (currentTeamIdx + 1) % teams.length
     setCurrentTeamIdx(nextIdx)
     setTimeLeft(ANSWER_TIME)
     setSelected(null)
@@ -685,7 +847,7 @@ export default function Play() {
             <div className="sidebar-title">Lượt Thi Đấu</div>
             <div className="sidebar-list">
               <div className="sidebar-timeline-line" />
-              {SAMPLE_TEAMS.map((team, i) => (
+              {teams.map((team, i) => (
                 <div
                   key={team.id}
                   className={`sidebar-item${i === currentTeamIdx ? ' active' : ''}`}
@@ -739,24 +901,38 @@ export default function Play() {
               </div>
 
               {/* Question */}
-              <div className="q-eyebrow">CÂU HỎI TRUY VẤN</div>
-              <div className="q-text">"{SAMPLE_QUESTION.text}"</div>
+              {!currentQuestion ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '3rem 1rem',
+                  color: '#887272',
+                  fontFamily: "'Noto Serif', serif",
+                }}>
+                  <div style={{ fontSize: 48, marginBottom: '1rem' }}>⏳</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, marginBottom: '0.5rem' }}>Chờ câu hỏi từ Ban Tổ chức</div>
+                  <div style={{ fontSize: 14 }}>Host sẽ mở lá bài trên màn hình chính</div>
+                </div>
+              ) : (
+                <>
+                  <div className="q-eyebrow">CÂU HỎI TRUY VẤN {questionMeta ? `· Lá số ${questionMeta.num}` : ''}</div>
+                  <div className="q-text">"{currentQuestion.text}"</div>
 
-              {/* Options */}
-              <div className="opt-eyebrow">CÁC PHƯƠNG ÁN TRẢ LỜI</div>
-              <div className="options-grid">
-                {SAMPLE_QUESTION.options.map((opt, i) => (
-                  <button
-                    key={i}
-                    className={`opt-btn ${optClass(i)}`}
-                    disabled={revealed}
-                    onClick={() => handleSelect(i)}
-                  >
-                    <span className="opt-label">{OPTION_LABELS[i]}</span>
-                    <span>{opt}</span>
-                  </button>
-                ))}
-              </div>
+                  <div className="opt-eyebrow">CÁC PHƯƠNG ÁN TRẢ LỜI</div>
+                  <div className="options-grid">
+                    {currentQuestion.options.map((opt, i) => (
+                      <button
+                        key={i}
+                        className={`opt-btn ${optClass(i)}`}
+                        disabled={revealed}
+                        onClick={() => handleSelect(i)}
+                      >
+                        <span className="opt-label">{OPTION_LABELS[i]}</span>
+                        <span>{opt}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
 
               {/* Result banner */}
               {result && (
@@ -782,7 +958,7 @@ export default function Play() {
                 CÁC ĐƠN VỊ ĐANG THEO DÕI
               </div>
               <div className="obs-grid">
-                {SAMPLE_TEAMS.filter((_, i) => i !== currentTeamIdx).slice(0, 4).map(team => (
+                {teams.filter((_, i) => i !== currentTeamIdx).slice(0, 4).map(team => (
                   <div key={team.id} className="obs-item">
                     <span className="obs-dot" style={{ background: team.color }} />
                     <span>{team.name}</span>
@@ -837,7 +1013,7 @@ export default function Play() {
             >✕</button>
 
             <div className="play-dice-title">
-              Gieo Xúc Xắc — {SAMPLE_TEAMS[currentTeamIdx]?.name}
+              Gieo Xúc Xắc — {teams[currentTeamIdx]?.name}
             </div>
 
             {/* 3-D cube */}

@@ -1,5 +1,28 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import "./Host.css";
+
+function broadcastDiceEvent(data) {
+  try {
+    const channel = new BroadcastChannel('vnr_dice_sync');
+    channel.postMessage(data);
+    channel.close();
+  } catch (e) {}
+  try {
+    localStorage.setItem('vnr_dice_event', JSON.stringify({ ...data, _ts: Date.now() }));
+  } catch (e) {}
+}
+
+function broadcastGameEvent(data) {
+  const payload = { ...data, _ts: Date.now() };
+  try {
+    const channel = new BroadcastChannel('vnr_game_sync');
+    channel.postMessage(payload);
+    channel.close();
+  } catch (e) {}
+  try {
+    localStorage.setItem('vnr_game_event', JSON.stringify(payload));
+  } catch (e) {}
+}
 
 /* ─── Dice Modal Styles (injected once) ─── */
 const DICE_STYLE = `
@@ -348,7 +371,16 @@ const QUESTIONS = {
 const CAT_NAME = { L: "Lý luận", S: "Số liệu thống kê", V: "Vận dụng hiện nay" };
 const CAT_COLOR = { L: "#7A2430", S: "#1F4E66", V: "#3F5D45" };
 const TOTAL_CARDS = 35;
-const TEAM_COLORS = ["#7A2430", "#1F4E66", "#3F5D45", "#B8860B"];
+
+const DEFAULT_TEAMS = [
+  { id: "red", name: "Đội Đỏ", color: "#7A2430", score: 0 },
+  { id: "blue", name: "Đội Xanh", color: "#1F4E66", score: 0 },
+  { id: "yellow", name: "Đội Vàng", color: "#B8860B", score: 0 },
+  { id: "purple", name: "Đội Tím", color: "#4A3A6B", score: 0 },
+  { id: "orange", name: "Đội Cam", color: "#D97706", score: 0 },
+  { id: "pink", name: "Đội Hồng", color: "#DB2777", score: 0 },
+  { id: "lam", name: "Đội Lam", color: "#2563EB", score: 0 },
+];
 
 function shuffle(arr) {
   const a = arr.slice();
@@ -427,9 +459,7 @@ function drawEffectCard(effectOrder, setEffectOrder) {
 }
 
 export default function Host() {
-  const [teams, setTeams] = useState(() =>
-    TEAM_COLORS.map((c, i) => ({ name: "Đội " + (i + 1), color: c, score: 0 }))
-  );
+  const [teams, setTeams] = useState(() => DEFAULT_TEAMS.map((t) => ({ ...t })));
   const [currentTeam, setCurrentTeam] = useState(0);
   const [cards, setCards] = useState(() => buildCardPool());
   const [effectOrder, setEffectOrder] = useState([]);
@@ -473,7 +503,7 @@ export default function Host() {
     });
   }, [teams]);
 
-  const finishOrNext = useCallback(() => {
+  const finishOrNext = useCallback((winnerTeamIdx) => {
     if (cards.every((c) => c.used)) {
       const ranked = [...teams].sort((a, b) => b.score - a.score);
       setWinnerName(ranked[0].name);
@@ -481,7 +511,12 @@ export default function Host() {
       setShowWinner(true);
       return;
     }
-    nextTurn();
+    if (typeof winnerTeamIdx === 'number') {
+      setCurrentTeam(winnerTeamIdx);
+      setAttemptLabel(teams[winnerTeamIdx].name);
+    } else {
+      nextTurn();
+    }
   }, [cards, teams, nextTurn]);
 
   const updateTeamName = (idx, name) => {
@@ -506,6 +541,22 @@ export default function Host() {
     setCloseNoEffect(false);
     setAttemptLabel(teams[order[0]].name);
     setShowOverlay(true);
+
+    // Broadcast câu hỏi cho Play.jsx
+    broadcastGameEvent({
+      type: 'QUESTION_OPEN',
+      card: {
+        q: card.q,
+        options: card.options,
+        correct: card.correct,
+        num: card.num,
+        cat: card.cat,
+      },
+      attemptOrder: order,
+      currentTeamIdx: order[0],
+      teamName: teams[order[0]].name,
+      teams: teams.map(({ id, name, color, score }) => ({ id, name, color, score })),
+    });
   };
 
   const handleOptionClick = (idx) => {
@@ -519,6 +570,13 @@ export default function Host() {
       setOptionStates(newStates);
       setShowExplain(true);
       setEffectLaunched(true);
+      // Broadcast kết quả đúng cho Play
+      broadcastGameEvent({
+        type: 'ANSWER_RESULT',
+        isCorrect: true,
+        optionIdx: idx,
+        winnerTeamIdx: answeringTeam,
+      });
     } else {
       const newStates = [...optionStates];
       newStates[idx] = "wrong";
@@ -528,6 +586,13 @@ export default function Host() {
         setAttemptIdx(nextIdx);
         setAnsweringTeam(attemptOrder[nextIdx]);
         setAttemptLabel(teams[attemptOrder[nextIdx]].name);
+        // Báo Play.jsx chuyển lượt
+        broadcastGameEvent({
+          type: 'ANSWER_RESULT',
+          isCorrect: false,
+          optionIdx: idx,
+          nextTeamIdx: attemptOrder[nextIdx],
+        });
       } else {
         const finalStates = [...newStates];
         finalStates[card.correct] = "correct";
@@ -535,9 +600,59 @@ export default function Host() {
         setShowExplain(true);
         setAttemptLabel("Không đội nào trả lời đúng.");
         setCloseNoEffect(true);
+        broadcastGameEvent({
+          type: 'ANSWER_RESULT',
+          isCorrect: false,
+          optionIdx: idx,
+          noWinner: true,
+          correctIdx: card.correct,
+        });
       }
     }
   };
+
+  // Lắng nghe đáp án từ Play.jsx
+  const pendingCardRef = useRef(null);
+  const optionStatesRef = useRef([]);
+  const attemptIdxRef = useRef(0);
+  const attemptOrderRef = useRef([]);
+  const answeringTeamRef = useRef(null);
+  const finishOrNextRef = useRef(finishOrNext);
+
+  useEffect(() => { pendingCardRef.current = pendingCard; }, [pendingCard]);
+  useEffect(() => { optionStatesRef.current = optionStates; }, [optionStates]);
+  useEffect(() => { attemptIdxRef.current = attemptIdx; }, [attemptIdx]);
+  useEffect(() => { attemptOrderRef.current = attemptOrder; }, [attemptOrder]);
+  useEffect(() => { answeringTeamRef.current = answeringTeam; }, [answeringTeam]);
+  useEffect(() => { finishOrNextRef.current = finishOrNext; }, [finishOrNext]);
+
+  useEffect(() => {
+    let channel;
+    const processPlayAnswer = (data) => {
+      if (data?.type !== 'PLAY_ANSWER') return;
+      // Chỉ xử lý nếu đang có câu hỏi mở
+      if (!pendingCardRef.current) return;
+      handleOptionClickRef.current(data.optionIdx);
+    };
+    try {
+      channel = new BroadcastChannel('vnr_game_sync');
+      channel.onmessage = (e) => { if (e.data) processPlayAnswer(e.data); };
+    } catch (e) {}
+    const handleStorage = (ev) => {
+      if (ev.key === 'vnr_play_answer' && ev.newValue) {
+        try { processPlayAnswer(JSON.parse(ev.newValue)); } catch (_) {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      if (channel) channel.close();
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
+  // Ref để tránh stale closure trong listener
+  const handleOptionClickRef = useRef(handleOptionClick);
+  useEffect(() => { handleOptionClickRef.current = handleOptionClick; }, [handleOptionClick]);
 
   const handleDrawEffect = () => {
     setCards((prev) => prev.map((c) => (c.num === pendingCard.num ? { ...c, used: true } : c)));
@@ -591,7 +706,87 @@ export default function Host() {
     setShowDiceModal(true);
   };
 
-  // Roll animation + result
+  // Synchronized dice roll handler from Play.jsx
+  const handleSyncDice = useCallback((data) => {
+    if (data?.type === 'DICE_ROLL_START') {
+      const { score, rx, ry, teamIdx, teamName } = data;
+      const targetTeamIdx = effectTeam !== null ? effectTeam : (teamIdx !== undefined ? teamIdx : currentTeam);
+
+      // Hiện modal trước, chờ React render visible rồi mới animate
+      setDiceValue(null);
+      setDiceResultVisible(false);
+      setDiceRolling(true);
+      setShowDiceModal(true);
+
+      // Đợi 1 frame để React render overlay visible rồi mới bắt đầu animation
+      requestAnimationFrame(() => {
+        // Reset cube về 0 trước, giống hệt Play.jsx openDice()
+        if (cubeRef.current) cubeRef.current.style.transform = 'rotateX(0deg) rotateY(0deg)';
+        // Sau đó mới set rotation mới + thêm animation classes
+        requestAnimationFrame(() => {
+          if (wrapperRef.current) wrapperRef.current.classList.add('dice-bouncing');
+          if (shadowRef.current) shadowRef.current.classList.add('shadow-rolling');
+          if (cubeRef.current) cubeRef.current.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
+        });
+      });
+
+      // Sau 1.5s hiện kết quả + cộng điểm
+      setTimeout(() => {
+        setDiceValue(score);
+        setDiceResultVisible(true);
+        setDiceRolling(false);
+        if (wrapperRef.current) wrapperRef.current.classList.remove('dice-bouncing');
+        if (shadowRef.current) shadowRef.current.classList.remove('shadow-rolling');
+
+        setTeams((prev) => {
+          const next = [...prev];
+          if (next[targetTeamIdx]) {
+            next[targetTeamIdx] = { ...next[targetTeamIdx], score: next[targetTeamIdx].score + score };
+          }
+          return next;
+        });
+
+        const targetName = teamName || teams[targetTeamIdx]?.name || `Đội ${targetTeamIdx + 1}`;
+        setEffectResult(`🎲 ${score} — ${targetName} +${score} điểm!`);
+        setShowEffContinue(true);
+        setEffBodyButtons(null);
+      }, 1500);
+    } else if (data?.type === 'DICE_CONFIRM') {
+      setShowDiceModal(false);
+      if (pendingCardRef.current && optionStatesRef.current.includes("correct")) {
+        setCards((prev) => prev.map((c) => (c.num === pendingCardRef.current.num ? { ...c, used: true } : c)));
+        setShowOverlay(false);
+        // Đội trả lời đúng tiếp tục lượt (không chuyển đội)
+      }
+    }
+  }, [effectTeam, currentTeam, teams]);
+
+  useEffect(() => {
+    let channel;
+    try {
+      channel = new BroadcastChannel('vnr_dice_sync');
+      channel.onmessage = (e) => {
+        if (e.data) handleSyncDice(e.data);
+      };
+    } catch (err) {}
+
+    const handleStorage = (e) => {
+      if (e.key === 'vnr_dice_event' && e.newValue) {
+        try {
+          const data = JSON.parse(e.newValue);
+          handleSyncDice(data);
+        } catch (err) {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      if (channel) channel.close();
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [handleSyncDice]);
+
+  // Roll animation + result (Host manual fallback)
   const handleRollDice = () => {
     if (diceRolling) return;
     setDiceRolling(true);
@@ -611,9 +806,24 @@ export default function Host() {
       case 5: rx += 90;  break;
     }
 
-    if (wrapperRef.current) wrapperRef.current.classList.add('dice-bouncing');
-    if (shadowRef.current) shadowRef.current.classList.add('shadow-rolling');
-    if (cubeRef.current) cubeRef.current.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
+    broadcastDiceEvent({
+      type: 'DICE_ROLL_START',
+      face,
+      score,
+      rx,
+      ry,
+      teamIdx: effectTeam !== null ? effectTeam : currentTeam,
+      teamName: teams[effectTeam !== null ? effectTeam : currentTeam]?.name
+    });
+
+    // Reset cube về 0 trước để transition luôn chạy từ điểm đầu
+    if (cubeRef.current) cubeRef.current.style.transform = 'rotateX(0deg) rotateY(0deg)';
+    // Đợi 1 frame cho browser apply transform 0 rồi mới animate
+    requestAnimationFrame(() => {
+      if (wrapperRef.current) wrapperRef.current.classList.add('dice-bouncing');
+      if (shadowRef.current) shadowRef.current.classList.add('shadow-rolling');
+      if (cubeRef.current) cubeRef.current.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
+    });
 
     setTimeout(() => {
       setDiceValue(score);
@@ -627,14 +837,22 @@ export default function Host() {
   // Confirm result: apply score and close modal
   const handleDiceConfirm = () => {
     setShowDiceModal(false);
+    const targetIdx = effectTeam !== null ? effectTeam : currentTeam;
     setTeams((prev) => {
       const next = [...prev];
-      next[effectTeam] = { ...next[effectTeam], score: next[effectTeam].score + diceValue };
+      if (next[targetIdx]) {
+        next[targetIdx] = { ...next[targetIdx], score: next[targetIdx].score + diceValue };
+      }
       return next;
     });
-    setEffectResult(`🎲 ${diceValue} — ${teams[effectTeam].name} +${diceValue} điểm!`);
+    setEffectResult(`🎲 ${diceValue} — ${teams[targetIdx]?.name} +${diceValue} điểm!`);
     setShowEffContinue(true);
     setEffBodyButtons(null);
+    broadcastDiceEvent({
+      type: 'DICE_CONFIRM',
+      teamIdx: targetIdx,
+      score: diceValue
+    });
   };
 
   const handleSteal = (targetIdx) => {
@@ -667,7 +885,7 @@ export default function Host() {
 
   const handleEffContinue = () => {
     setShowEffectOverlay(false);
-    finishOrNext();
+    // Đội trả lời đúng tiếp tục lượt — không chuyển đội
   };
 
   const handleFinish = () => {
@@ -678,13 +896,33 @@ export default function Host() {
   };
 
   const handleReset = () => {
-    setTeams(TEAM_COLORS.map((c, i) => ({ name: "Đội " + (i + 1), color: c, score: 0 })));
+    // Xáo trộn ngẫu nhiên thứ tự đội
+    const shuffled = shuffle(DEFAULT_TEAMS.map((t) => ({ ...t })));
+    setTeams(shuffled);
     setCurrentTeam(0);
     setCards(buildCardPool());
     setEffectOrder([]);
     setShowOverlay(false);
     setShowEffectOverlay(false);
     setShowWinner(false);
+
+    // Broadcast thứ tự mới cho Play.jsx
+    const payload = {
+      type: 'GAME_RESET',
+      teams: shuffled.map(({ id, name, color, score }) => ({ id, name, color, score })),
+      _ts: Date.now(),
+    };
+    try {
+      const ch = new BroadcastChannel('vnr_dice_sync');
+      ch.postMessage(payload);
+      ch.close();
+    } catch (e) {}
+    try {
+      localStorage.setItem('vnr_game_event', JSON.stringify(payload));
+      localStorage.setItem('vnr_team_order', JSON.stringify(
+        shuffled.map(({ id, name, color, score }) => ({ id, name, color, score }))
+      ));
+    } catch (e) {}
   };
 
   const openedCount = cards.filter((c) => c.used).length;
@@ -800,24 +1038,48 @@ export default function Host() {
             </div>
             <div className="card-q">{pendingCard.q}</div>
             <div className="attempt-label">Lượt trả lời: {attemptLabel}</div>
+
+            {/* Options: hiển thị read-only, đánh dấu đúng/sai theo Play */}
             <div className="options">
               {pendingCard.options.map((opt, i) => (
-                <button
+                <div
                   key={i}
                   className={"opt-btn" + (optionStates[i] ? " " + optionStates[i] : "")}
-                  disabled={optionStates[i] !== ""}
-                  onClick={() => handleOptionClick(i)}
+                  style={{ cursor: 'default', opacity: optionStates[i] ? 1 : 0.75 }}
                 >
                   {opt}
-                </button>
+                  {optionStates[i] === 'correct' && ' ✓'}
+                  {optionStates[i] === 'wrong' && ' ✗'}
+                </div>
               ))}
             </div>
+
+            {/* Nút ghi đè thủ công nếu Play không kết nối */}
+            {!showExplain && !closeNoEffect && (
+              <details style={{ marginTop: 12, fontSize: 13, color: '#887272' }}>
+                <summary style={{ cursor: 'pointer' }}>Nhập thủ công (khi Play không kết nối)</summary>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                  {pendingCard.options.map((opt, i) => (
+                    <button
+                      key={i}
+                      className={"opt-btn" + (optionStates[i] ? " " + optionStates[i] : "")}
+                      disabled={optionStates[i] !== ""}
+                      onClick={() => handleOptionClick(i)}
+                      style={{ fontSize: 13 }}
+                    >
+                      {String.fromCharCode(65 + i)}: {opt.substring(0, 30)}...
+                    </button>
+                  ))}
+                </div>
+              </details>
+            )}
+
             <div className={"card-a" + (showExplain ? " show" : "")}>{pendingCard.explain}</div>
             {effectLaunched && (
               <div className="card-actions">
-                <button className="host-btn" onClick={handleDrawEffect}>
-                  Bốc lá bài may mắn
-                </button>
+                <div style={{ color: '#7a2430', fontSize: '15px', fontWeight: 'bold' }}>
+                  🎲 Đang chờ người chơi tung xúc xắc lấy điểm...
+                </div>
               </div>
             )}
             {closeNoEffect && (
@@ -841,37 +1103,49 @@ export default function Host() {
             </div>
             <div className="eff-desc">{effectDef.desc}</div>
             <div className="eff-body">
-              {effectResult && <div className="eff-result">{effectResult}</div>}
               {effBodyButtons === "dice" && !showEffContinue && (
-                <button onClick={openDiceModal}>Tung xúc xắc 🎲</button>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", width: "100%" }}>
+                  <div style={{ fontSize: "14px", color: "var(--maroon-dark)", fontWeight: "600", padding: "8px 0", textAlign: "center" }}>
+                    🎲 Đang chờ người chơi tung xúc xắc trên màn hình Play...
+                  </div>
+                  <button onClick={openDiceModal} className="host-btn ghost" style={{ fontSize: "12px", width: "auto", padding: "6px 14px" }}>
+                    (Hoặc Host tự tung xúc xắc tại đây)
+                  </button>
+                </div>
               )}
               {effBodyButtons === "steal" &&
-                !showEffContinue &&
-                teams.map(
-                  (t, i) =>
-                    i !== effectTeam && (
-                      <button
-                        key={i}
-                        style={{ background: t.color, borderColor: t.color }}
-                        onClick={() => handleSteal(i)}
-                      >
-                        Cướp từ {t.name} ({t.score}đ)
-                      </button>
-                    )
+                !showEffContinue && (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "8px", width: "100%" }}>
+                    {teams.map(
+                      (t, i) =>
+                        i !== effectTeam && (
+                          <button
+                            key={i}
+                            style={{ background: t.color, borderColor: t.color, padding: "8px 6px", fontSize: "13px" }}
+                            onClick={() => handleSteal(i)}
+                          >
+                            Cướp từ {t.name} ({t.score}đ)
+                          </button>
+                        )
+                    )}
+                  </div>
                 )}
               {effBodyButtons === "swap" &&
-                !showEffContinue &&
-                teams.map(
-                  (t, i) =>
-                    i !== effectTeam && (
-                      <button
-                        key={i}
-                        style={{ background: t.color, borderColor: t.color }}
-                        onClick={() => handleSwap(i)}
-                      >
-                        Đổi điểm với {t.name} ({t.score}đ)
-                      </button>
-                    )
+                !showEffContinue && (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "8px", width: "100%" }}>
+                    {teams.map(
+                      (t, i) =>
+                        i !== effectTeam && (
+                          <button
+                            key={i}
+                            style={{ background: t.color, borderColor: t.color, padding: "8px 6px", fontSize: "13px" }}
+                            onClick={() => handleSwap(i)}
+                          >
+                            Đổi với {t.name} ({t.score}đ)
+                          </button>
+                        )
+                    )}
+                  </div>
                 )}
             </div>
             {showEffContinue && (
@@ -918,7 +1192,7 @@ export default function Host() {
         <div className="dice-modal">
           <button className="dice-close-btn" onClick={() => !diceRolling && setShowDiceModal(false)}>✕</button>
           <div className="dice-modal-title">
-            Gieo Xúc Xắc — {effectTeam !== null ? teams[effectTeam]?.name : ""}
+            Gieo Xúc Xắc — {effectTeam !== null ? teams[effectTeam]?.name : (teams[currentTeam]?.name || "")}
           </div>
 
           {/* 3-D Dice */}
@@ -935,14 +1209,6 @@ export default function Host() {
             </div>
             <div className="dice-shadow" ref={shadowRef} />
           </div>
-
-          <button
-            className="dice-roll-btn"
-            onClick={handleRollDice}
-            disabled={diceRolling || diceValue !== null}
-          >
-            {diceRolling ? "Đang gieo..." : diceValue !== null ? "Đã gieo" : "Gieo Điểm"}
-          </button>
 
           <div className={"dice-result" + (diceResultVisible ? "" : " hidden-result")}>
             <span className="dice-result-text">Tiến lên</span>
