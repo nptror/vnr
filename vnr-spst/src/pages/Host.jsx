@@ -718,16 +718,19 @@ export default function Host() {
       setDiceRolling(true);
       setShowDiceModal(true);
 
-      // Đợi 1 frame để React render overlay visible rồi mới bắt đầu animation
+      // Đợi 1 frame để React render overlay visible
       requestAnimationFrame(() => {
-        // Reset cube về 0 trước, giống hệt Play.jsx openDice()
-        if (cubeRef.current) cubeRef.current.style.transform = 'rotateX(0deg) rotateY(0deg)';
-        // Sau đó mới set rotation mới + thêm animation classes
-        requestAnimationFrame(() => {
-          if (wrapperRef.current) wrapperRef.current.classList.add('dice-bouncing');
-          if (shadowRef.current) shadowRef.current.classList.add('shadow-rolling');
-          if (cubeRef.current) cubeRef.current.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
-        });
+        // Reset cube về 0 tức thì (tắt transition để không animate về 0)
+        if (cubeRef.current) {
+          cubeRef.current.style.transition = 'none';
+          cubeRef.current.style.transform = 'rotateX(0deg) rotateY(0deg)';
+          cubeRef.current.offsetHeight; // force reflow → apply instant
+          cubeRef.current.style.transition = '';
+        }
+        // Bây giờ cube đã ở 0, thêm animation + set rotation mới
+        if (wrapperRef.current) wrapperRef.current.classList.add('dice-bouncing');
+        if (shadowRef.current) shadowRef.current.classList.add('shadow-rolling');
+        if (cubeRef.current) cubeRef.current.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
       });
 
       // Sau 1.5s hiện kết quả + cộng điểm
