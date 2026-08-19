@@ -1,5 +1,138 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import "./Host.css";
+
+/* ─── Dice Modal Styles (injected once) ─── */
+const DICE_STYLE = `
+  .dice-overlay {
+    position: fixed; inset: 0; z-index: 70;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(20,16,10,0.6);
+    padding: 20px;
+  }
+  .dice-overlay.hidden { display: none; }
+  .dice-modal {
+    background: #fdfbf7;
+    border: 3px double #141b2c;
+    border-radius: 4px;
+    padding: 2.5rem;
+    max-width: 420px; width: 100%;
+    display: flex; flex-direction: column; align-items: center;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    transform: rotate(-0.4deg);
+  }
+  .dice-modal-title {
+    font-family: 'Noto Serif', serif;
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: #554243;
+    margin-bottom: 2rem;
+    border-bottom: 0.5px solid #887272;
+    padding-bottom: 0.5rem;
+    width: 100%; text-align: center;
+  }
+  .dice-close-btn {
+    position: absolute; top: 1rem; right: 1rem;
+    background: none; border: none; cursor: pointer;
+    color: #887272; font-size: 20px; line-height: 1;
+    transition: color 0.15s;
+  }
+  .dice-close-btn:hover { color: #5c0c1c; }
+  .dice-scene {
+    perspective: 1000px;
+    width: 96px; height: 96px;
+    margin-bottom: 3rem;
+    position: relative;
+  }
+  .dice-wrapper {
+    width: 100%; height: 100%; position: absolute;
+  }
+  .dice-cube {
+    width: 100%; height: 100%; position: absolute;
+    transform-style: preserve-3d;
+    transition: transform 1500ms ease-out;
+  }
+  .dice-face {
+    position: absolute;
+    width: 96px; height: 96px;
+    background-color: #faf8ff;
+    border: 2px solid #141b2c;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Courier New', monospace;
+    font-size: 48px; font-weight: bold;
+    color: #141b2c;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.4), -0.5px -0.5px 0 rgba(0,0,0,0.2);
+    box-shadow: inset 0 0 15px rgba(0,0,0,0.05);
+  }
+  .dice-face.front  { transform: rotateY(  0deg) translateZ(48px); }
+  .dice-face.back   { transform: rotateY(180deg) translateZ(48px); }
+  .dice-face.right  { transform: rotateY( 90deg) translateZ(48px); }
+  .dice-face.left   { transform: rotateY(-90deg) translateZ(48px); }
+  .dice-face.top    { transform: rotateX( 90deg) translateZ(48px); }
+  .dice-face.bottom { transform: rotateX(-90deg) translateZ(48px); }
+  .dice-shadow {
+    position: absolute; bottom: -1.5rem; left: 50%;
+    transform: translateX(-50%);
+    width: 80px; height: 16px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 50%;
+    filter: blur(4px);
+  }
+  @keyframes dice-bounce {
+    0%   { transform: translate(-120px,-80px) scale(0.6); }
+    20%  { transform: translate(100px,60px) scale(1.1); }
+    45%  { transform: translate(-60px,-40px) scale(0.85); }
+    70%  { transform: translate(40px,30px) scale(1.05); }
+    85%  { transform: translate(-15px,-15px) scale(0.95); }
+    100% { transform: translate(0,0) scale(1); }
+  }
+  @keyframes shadow-pulse {
+    0%   { transform: translateX(-50%) scale(0.6); opacity: 0.1; }
+    20%  { transform: translateX(-50%) scale(1.1); opacity: 0.05; }
+    45%  { transform: translateX(-50%) scale(0.85); opacity: 0.15; }
+    70%  { transform: translateX(-50%) scale(1.05); opacity: 0.08; }
+    85%  { transform: translateX(-50%) scale(0.95); opacity: 0.12; }
+    100% { transform: translateX(-50%) scale(1); opacity: 0.1; }
+  }
+  .dice-bouncing { animation: dice-bounce 1.5s cubic-bezier(0.25,1,0.5,1) forwards; }
+  .shadow-rolling { animation: shadow-pulse 1.5s cubic-bezier(0.25,1,0.5,1) forwards; }
+  .dice-roll-btn {
+    background: #7a2430; color: #fff;
+    font-family: 'Noto Serif', serif;
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 0.75rem 2.5rem;
+    border: none; border-radius: 0; cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    z-index: 10; position: relative;
+  }
+  .dice-roll-btn:hover { transform: translateY(2px); box-shadow: 0 0 0 2px #141b2c; }
+  .dice-roll-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  .dice-result {
+    margin-top: 1.5rem; height: 2rem;
+    display: flex; align-items: center; justify-content: center;
+    gap: 0.5rem; z-index: 10;
+    transition: opacity 0.3s;
+    font-family: 'Noto Serif', serif;
+  }
+  .dice-result.hidden-result { opacity: 0; }
+  .dice-result-num {
+    font-size: 32px; font-weight: 700; color: #7a2430; line-height: 1;
+  }
+  .dice-result-text { font-size: 18px; font-weight: 600; color: #141b2c; }
+  .dice-confirm-btn {
+    margin-top: 1rem;
+    background: transparent; color: #141b2c;
+    font-family: 'Noto Serif', serif;
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 0.5rem 2rem;
+    border: 1px solid #887272; border-radius: 0; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .dice-confirm-btn:hover { background: #f1e7cf; }
+`;
 
 const QUESTIONS = {
   L: [
@@ -319,6 +452,15 @@ export default function Host() {
   const [showEffContinue, setShowEffContinue] = useState(false);
   const [effBodyButtons, setEffBodyButtons] = useState(null);
 
+  // ── Dice Modal state ──
+  const [showDiceModal, setShowDiceModal] = useState(false);
+  const [diceRolling, setDiceRolling] = useState(false);
+  const [diceValue, setDiceValue] = useState(null);
+  const [diceResultVisible, setDiceResultVisible] = useState(false);
+  const cubeRef = useRef(null);
+  const wrapperRef = useRef(null);
+  const shadowRef = useRef(null);
+
   const [showWinner, setShowWinner] = useState(false);
   const [winnerName, setWinnerName] = useState("");
   const [rankList, setRankList] = useState([]);
@@ -440,14 +582,57 @@ export default function Host() {
     setShowEffectOverlay(true);
   };
 
+  // Open the 3-D dice modal (called from effect card)
+  const openDiceModal = () => {
+    setDiceValue(null);
+    setDiceResultVisible(false);
+    setDiceRolling(false);
+    if (cubeRef.current) cubeRef.current.style.transform = 'rotateX(0deg) rotateY(0deg)';
+    setShowDiceModal(true);
+  };
+
+  // Roll animation + result
   const handleRollDice = () => {
-    const val = Math.floor(Math.random() * 5) + 1;
+    if (diceRolling) return;
+    setDiceRolling(true);
+    setDiceResultVisible(false);
+
+    const face = Math.floor(Math.random() * 6) + 1;
+    // The actual score uses 1-5; face 6 → treated as 5
+    const score = Math.min(face, 5);
+
+    let rx = 1440, ry = 1440;
+    switch (face) {
+      case 1: break;
+      case 6: ry += 180; break;
+      case 3: ry -= 90;  break;
+      case 4: ry += 90;  break;
+      case 2: rx -= 90;  break;
+      case 5: rx += 90;  break;
+    }
+
+    if (wrapperRef.current) wrapperRef.current.classList.add('dice-bouncing');
+    if (shadowRef.current) shadowRef.current.classList.add('shadow-rolling');
+    if (cubeRef.current) cubeRef.current.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
+
+    setTimeout(() => {
+      setDiceValue(score);
+      setDiceResultVisible(true);
+      setDiceRolling(false);
+      if (wrapperRef.current) wrapperRef.current.classList.remove('dice-bouncing');
+      if (shadowRef.current) shadowRef.current.classList.remove('shadow-rolling');
+    }, 1500);
+  };
+
+  // Confirm result: apply score and close modal
+  const handleDiceConfirm = () => {
+    setShowDiceModal(false);
     setTeams((prev) => {
       const next = [...prev];
-      next[effectTeam] = { ...next[effectTeam], score: next[effectTeam].score + val };
+      next[effectTeam] = { ...next[effectTeam], score: next[effectTeam].score + diceValue };
       return next;
     });
-    setEffectResult(`🎲 ${val} — ${teams[effectTeam].name} +${val} điểm!`);
+    setEffectResult(`🎲 ${diceValue} — ${teams[effectTeam].name} +${diceValue} điểm!`);
     setShowEffContinue(true);
     setEffBodyButtons(null);
   };
@@ -658,7 +843,7 @@ export default function Host() {
             <div className="eff-body">
               {effectResult && <div className="eff-result">{effectResult}</div>}
               {effBodyButtons === "dice" && !showEffContinue && (
-                <button onClick={handleRollDice}>Tung xúc xắc</button>
+                <button onClick={openDiceModal}>Tung xúc xắc 🎲</button>
               )}
               {effBodyButtons === "steal" &&
                 !showEffContinue &&
@@ -724,6 +909,52 @@ export default function Host() {
           >
             Đóng
           </button>
+        </div>
+      </div>
+
+      {/* ── Dice Modal ── */}
+      <style>{DICE_STYLE}</style>
+      <div className={"dice-overlay" + (showDiceModal ? "" : " hidden")}>
+        <div className="dice-modal">
+          <button className="dice-close-btn" onClick={() => !diceRolling && setShowDiceModal(false)}>✕</button>
+          <div className="dice-modal-title">
+            Gieo Xúc Xắc — {effectTeam !== null ? teams[effectTeam]?.name : ""}
+          </div>
+
+          {/* 3-D Dice */}
+          <div className="dice-scene">
+            <div className="dice-wrapper" ref={wrapperRef}>
+              <div className="dice-cube" ref={cubeRef}>
+                <div className="dice-face front">1</div>
+                <div className="dice-face back">6</div>
+                <div className="dice-face right">3</div>
+                <div className="dice-face left">4</div>
+                <div className="dice-face top">2</div>
+                <div className="dice-face bottom">5</div>
+              </div>
+            </div>
+            <div className="dice-shadow" ref={shadowRef} />
+          </div>
+
+          <button
+            className="dice-roll-btn"
+            onClick={handleRollDice}
+            disabled={diceRolling || diceValue !== null}
+          >
+            {diceRolling ? "Đang gieo..." : diceValue !== null ? "Đã gieo" : "Gieo Điểm"}
+          </button>
+
+          <div className={"dice-result" + (diceResultVisible ? "" : " hidden-result")}>
+            <span className="dice-result-text">Tiến lên</span>
+            <span className="dice-result-num">{diceValue ?? ""}</span>
+            <span className="dice-result-text">bước</span>
+          </div>
+
+          {diceResultVisible && (
+            <button className="dice-confirm-btn" onClick={handleDiceConfirm}>
+              Xác nhận + {diceValue} điểm
+            </button>
+          )}
         </div>
       </div>
     </div>

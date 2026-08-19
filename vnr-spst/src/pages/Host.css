@@ -18,8 +18,7 @@
   --swap: #4A3A6B;
   --wrong: #B4423A;
 
-  max-width: 1180px;
-  margin: 0 auto;
+  width: 100%;
   padding: 24px;
   background: var(--paper);
   background-image: radial-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px);
@@ -27,7 +26,9 @@
   font-family: 'Noto Sans', sans-serif;
   color: var(--ink);
   min-height: 100vh;
+  box-sizing: border-box;
 }
+
 
 .masthead {
   display: flex;
