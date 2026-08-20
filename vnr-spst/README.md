@@ -1,3 +1,21 @@
+# Hành Trình Đổi Mới — multi-device classroom game
+
+A one-Host, seven-team classroom quiz game. Every device (the Host's screen and each
+team's device) syncs through Supabase — see `docs/superpowers/specs/2026-08-20-multi-device-game-design.md`
+for the design and `GAMEPLAY.md` for how a round plays out.
+
+## Run it
+
+1. Configure `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` and apply `supabase/schema.sql`
+   (see `supabase/SETUP.md`).
+2. `npm install && npm run dev`, then deploy or share one running instance to every device.
+3. Host opens `/host` — a game (PIN `1986`) is created or resumed automatically.
+4. Host shares the PIN and each team's classroom code; each representative opens
+   `/pick-team` on their own device to join, then is routed to `/play`.
+5. Host begins once devices show as joined, opening cards from the `/host` board.
+
+---
+
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

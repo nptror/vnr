@@ -142,46 +142,61 @@ Khi trả lời đúng, đội đó bốc **1 lá bài hiệu ứng** từ bộ 
 
 ---
 
-## 🎬 Các bước Setup
+## 😂 Thả meme (Meme Drop)
 
-### 1. Đăng nhập
+Bất kỳ lúc nào, người chơi trên `/play` có thể mở panel **"THẢ MEME"** và chọn 1 ảnh/GIF
+trong 4 nhóm (Vui nhộn, Buồn bã, Ngạc nhiên, Khác). Meme sẽ "rơi" xuống màn hình `/host`
+kèm tên và màu đội, tự biến mất sau ~3.5 giây. Có cooldown 3 giây giữa 2 lần thả.
+
+- Đây là tính năng **thuần giải trí, không ảnh hưởng điểm số hay trạng thái ván chơi**.
+- Vì không cần lưu trữ hay đồng bộ chặt, meme drop dùng kênh **Supabase Realtime Broadcast**
+  (ephemeral, không qua bảng nào trong DB) thay vì BroadcastChannel — vẫn hoạt động
+  xuyên nhiều thiết bị/trình duyệt.
+
+---
+
+## 🎬 Các bước Setup (nhiều thiết bị)
+
+Tất cả thiết bị (Host và 7 đội) phải trỏ tới **cùng một bản deploy** đã cấu hình
+`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` — xem `supabase/SETUP.md`.
 
 | Bước | Hành động |
 |------|-----------|
-| 1 | Mở trang chủ, nhập mã PIN: `1986` |
-| 2 | Chọn vai trò: **Điều phối viên** (Host) hoặc **Người chơi** (Player) |
-| 3 | Nhấn **Vào chơi** |
+| 1 | Host mở `/host` trên máy trình chiếu — game mới (PIN `1986`) được tạo tự động và lưu trong Supabase |
+| 2 | Host đọc mã PIN + mã đội (`red`, `blue`, `yellow`, `purple`, `orange`, `pink`, `lam`) cho từng nhóm |
+| 3 | Mỗi đại diện đội mở `/pick-team` trên thiết bị riêng, nhập PIN, chọn đội, nhập mã đội |
+| 4 | Sau khi tham gia, thiết bị chuyển tới `/play` và chờ Host mở lá bài đầu tiên |
 
-### 2. Host (Điều phối viên)
+### Host (Điều phối viên) — `/host`
 
-- Mở tab/màn hình `/host`
-- Quản lý bảng điểm, click lá bài, điều khiển lượt chơi
-- Có thể nhập đáp án thủ công khi Play không kết nối
+- Là nơi **duy nhất** mở lá bài, chấm đáp án, bốc/áp dụng hiệu ứng, tung xúc xắc, reset và kết thúc ván
+- Reload `/host` sẽ tự động khôi phục đúng ván đang chơi (lưu `gameId` trong `localStorage`)
+- Có ô "Nhập thủ công" để ghi đáp án thay khi thiết bị Play không kết nối được
 
-### 3. Player (Người chơi)
+### Player (Người chơi) — `/pick-team` → `/play`
 
-- Mở tab/màn hình `/pick-team` → chọn đội
-- Sau đó vào `/play`
-- Nhìn thấy câu hỏi同步 từ Host
-- Chọn đáp án → kết quả sync về Host
-- Tung xúc xắc khi bốc được bài 🎲
+- `/play` chỉ đọc dữ liệu chia sẻ (`games`, `teams`, `game_state`) và chỉ có thể gửi **một** đáp án khi đúng lượt đội mình
+- Reload `/play` khôi phục đúng câu hỏi/điểm/hiệu ứng hiện tại vì mọi state nằm trong Supabase, không nằm trong trình duyệt
 
 ---
 
 ## 🔗 Đồng bộ (Sync)
 
-Game hiện sử dụng **BroadcastChannel** + **localStorage** (chỉ đồng bộ trong cùng 1 trình duyệt).
+Game dùng **Supabase làm nguồn dữ liệu chung duy nhất** — không còn `BroadcastChannel`
+hay `localStorage` cho state chia sẻ:
 
-Khi tích hợp **Supabase Realtime**, game sẽ:
+- `games`, `teams`, `game_state`, `game_events` được đọc lần đầu qua `loadGame`, sau đó
+  theo dõi thay đổi realtime qua `postgres_changes` (`subscribeToGame`).
+- Host là actor duy nhất ghi vào `game_state`/`teams`; mỗi lần ghi tăng `revision` để
+  tránh ghi đè chồng chéo.
+- Player chỉ ghi một dòng vào `game_events` (loại `PLAYER_ANSWER`); Host đọc sự kiện này,
+  xác thực đúng đội/đúng lá bài/đúng revision rồi mới cập nhật `game_state`.
+- Thả meme dùng kênh Supabase Realtime Broadcast riêng (ephemeral, không lưu DB) — xem mục
+  "Thả meme" ở trên.
+- `localStorage` trên mỗi thiết bị chỉ giữ `gameId`/`teamKey` (Player) hoặc `gameId` (Host)
+  để tiện việc rejoin sau khi reload — không phải nơi lưu trạng thái ván chơi.
 
-| Tính năng | BroadcastChannel | Supabase Realtime |
-|-----------|-----------------|-------------------|
-| Đa thiết bị | ❌ | ✅ |
-| Đa trình duyệt | ❌ | ✅ |
-| Reload giữ state | ❌ | ✅ |
-| Tốc độ | ⚡ Nhanh nhất | ⚡ Rất nhanh |
-
-Xem hướng dẫn tích hợp tại `supabase/SETUP.md`.
+Xem chi tiết schema và cấu hình tại `supabase/SETUP.md`.
 
 ---
 
