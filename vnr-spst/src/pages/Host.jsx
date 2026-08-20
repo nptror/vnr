@@ -412,11 +412,17 @@ function buildCardPool() {
 
 function buildEffectDefs() {
   return [
-    ...Array(15).fill(null).map(() => ({
+    ...Array(12).fill(null).map(() => ({
       type: "points",
       icon: "🎲",
       label: "Rút Điểm May Mắn",
       desc: "Tung xúc xắc để nhận điểm từ 1 đến 5.",
+    })),
+    ...Array(4).fill(null).map(() => ({
+      type: "dice_subtract",
+      icon: "🎲",
+      label: "Tung Xúc Xắc Trừ Điểm",
+      desc: "Tung xúc xắc để trừ 1 đến 5 điểm.",
     })),
     ...Array(3).fill(null).map(() => ({
       type: "lose_all",
@@ -487,6 +493,7 @@ export default function Host() {
   const [diceRolling, setDiceRolling] = useState(false);
   const [diceValue, setDiceValue] = useState(null);
   const [diceResultVisible, setDiceResultVisible] = useState(false);
+  const [diceSubtract, setDiceSubtract] = useState(false);
   const cubeRef = useRef(null);
   const wrapperRef = useRef(null);
   const shadowRef = useRef(null);
@@ -673,7 +680,7 @@ export default function Host() {
     setEffectResult(null);
     setShowEffContinue(false);
 
-    if (def.type === "points") {
+    if (def.type === "points" || def.type === "dice_subtract") {
       setEffBodyButtons("dice");
     } else if (def.type === "lose_all") {
       setTeams((prev) => {
@@ -702,6 +709,7 @@ export default function Host() {
     setDiceValue(null);
     setDiceResultVisible(false);
     setDiceRolling(false);
+    setDiceSubtract(effectDef?.type === 'dice_subtract');
     if (cubeRef.current) cubeRef.current.style.transform = 'rotateX(0deg) rotateY(0deg)';
     setShowDiceModal(true);
   };
@@ -733,7 +741,7 @@ export default function Host() {
         if (cubeRef.current) cubeRef.current.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
       });
 
-      // Sau 1.5s hiện kết quả + cộng điểm
+      // Sau 1.5s hiện kết quả + trừ/cộng điểm
       setTimeout(() => {
         setDiceValue(score);
         setDiceResultVisible(true);
@@ -741,16 +749,20 @@ export default function Host() {
         if (wrapperRef.current) wrapperRef.current.classList.remove('dice-bouncing');
         if (shadowRef.current) shadowRef.current.classList.remove('shadow-rolling');
 
+        const isSubtract = effectDef?.type === 'dice_subtract';
+        const delta = isSubtract ? -score : score;
+
         setTeams((prev) => {
           const next = [...prev];
           if (next[targetTeamIdx]) {
-            next[targetTeamIdx] = { ...next[targetTeamIdx], score: next[targetTeamIdx].score + score };
+            next[targetTeamIdx] = { ...next[targetTeamIdx], score: Math.max(0, next[targetTeamIdx].score + delta) };
           }
           return next;
         });
 
         const targetName = teamName || teams[targetTeamIdx]?.name || `Đội ${targetTeamIdx + 1}`;
-        setEffectResult(`🎲 ${score} — ${targetName} +${score} điểm!`);
+        const sign = isSubtract ? '-' : '+';
+        setEffectResult(`🎲 ${score} — ${targetName} ${sign}${score} điểm!`);
         setShowEffContinue(true);
         setEffBodyButtons(null);
       }, 1500);
@@ -841,14 +853,17 @@ export default function Host() {
   const handleDiceConfirm = () => {
     setShowDiceModal(false);
     const targetIdx = effectTeam !== null ? effectTeam : currentTeam;
+    const isSub = effectDef?.type === 'dice_subtract';
+    const delta = isSub ? -diceValue : diceValue;
     setTeams((prev) => {
       const next = [...prev];
       if (next[targetIdx]) {
-        next[targetIdx] = { ...next[targetIdx], score: next[targetIdx].score + diceValue };
+        next[targetIdx] = { ...next[targetIdx], score: Math.max(0, next[targetIdx].score + delta) };
       }
       return next;
     });
-    setEffectResult(`🎲 ${diceValue} — ${teams[targetIdx]?.name} +${diceValue} điểm!`);
+    const sign = isSub ? '-' : '+';
+    setEffectResult(`🎲 ${diceValue} — ${teams[targetIdx]?.name} ${sign}${diceValue} điểm!`);
     setShowEffContinue(true);
     setEffBodyButtons(null);
     broadcastDiceEvent({
@@ -958,6 +973,9 @@ export default function Host() {
       <div className="legend effects">
         <span>
           <b style={{ background: "#3F5D45" }} />+1–5 điểm (tung xúc xắc)
+        </span>
+        <span>
+          <b style={{ background: "#9B2335" }} />-1–5 điểm (tung xúc xắc trừ)
         </span>
         <span>
           <b style={{ background: "#B4B2A9" }} />Mất hết điểm
@@ -1214,14 +1232,14 @@ export default function Host() {
           </div>
 
           <div className={"dice-result" + (diceResultVisible ? "" : " hidden-result")}>
-            <span className="dice-result-text">Tiến lên</span>
-            <span className="dice-result-num">{diceValue ?? ""}</span>
+            <span className="dice-result-text">{diceSubtract ? 'Trừ' : 'Tiến lên'}</span>
+            <span className="dice-result-num" style={diceSubtract ? {color:'#9B2335'} : {}}>{diceValue ?? ""}</span>
             <span className="dice-result-text">bước</span>
           </div>
 
           {diceResultVisible && (
             <button className="dice-confirm-btn" onClick={handleDiceConfirm}>
-              Xác nhận + {diceValue} điểm
+              Xác nhận {diceSubtract ? '-' : '+'} {diceValue} điểm
             </button>
           )}
         </div>
