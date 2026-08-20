@@ -6,7 +6,7 @@ import suprise1 from '../assets/meme/suprise/kindpng_1290620.png'
 import suprise2 from '../assets/meme/suprise/kindpng_3708768.png'
 import other1 from '../assets/meme/other/kindpng_7159180.png'
 import other2 from '../assets/meme/other/pngwing.com.png'
-import catGive from '../assets/meme/other/gif_orther/Cat Give GIF.gif'
+import catGive from '../assets/meme/other/gif_other/Cat Give GIF.gif'
 
 /**
  * Danh sách meme theo folder.

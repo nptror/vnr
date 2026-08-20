@@ -625,8 +625,27 @@ export default function Host() {
       const newStates = [...optionStates];
       newStates[idx] = "wrong";
       setOptionStates(newStates);
+
+      // Đếm số đáp án sai đã chọn
+      const wrongCount = newStates.filter((s) => s === "wrong").length;
       const nextIdx = attemptIdx + 1;
-      if (nextIdx < attemptOrder.length) {
+
+      if (wrongCount >= 3 || nextIdx >= attemptOrder.length) {
+        // Khi 3 đáp án sai hoặc hết lượt → bỏ câu này, đội tiếp theo được chọn câu mới
+        setCards((prev) => prev.map((c) => (c.num === card.num ? { ...c, used: true } : c)));
+        setShowOverlay(false);
+        const nextTeamIdx = nextIdx < attemptOrder.length ? attemptOrder[nextIdx] : attemptOrder[0];
+        setCurrentTeam(nextTeamIdx);
+        setAttemptLabel(teams[nextTeamIdx].name);
+        broadcastGameEvent({
+          type: 'ANSWER_RESULT',
+          isCorrect: false,
+          optionIdx: idx,
+          noWinner: true,
+          skipped: true,
+          nextTeamIdx: nextTeamIdx,
+        });
+      } else {
         setAttemptIdx(nextIdx);
         setAnsweringTeam(attemptOrder[nextIdx]);
         setAttemptLabel(teams[attemptOrder[nextIdx]].name);
@@ -636,20 +655,6 @@ export default function Host() {
           isCorrect: false,
           optionIdx: idx,
           nextTeamIdx: attemptOrder[nextIdx],
-        });
-      } else {
-        const finalStates = [...newStates];
-        finalStates[card.correct] = "correct";
-        setOptionStates(finalStates);
-        setShowExplain(true);
-        setAttemptLabel("Không đội nào trả lời đúng.");
-        setCloseNoEffect(true);
-        broadcastGameEvent({
-          type: 'ANSWER_RESULT',
-          isCorrect: false,
-          optionIdx: idx,
-          noWinner: true,
-          correctIdx: card.correct,
         });
       }
     }

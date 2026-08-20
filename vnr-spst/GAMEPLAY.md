@@ -69,10 +69,11 @@
 │ Hiện giải thích   │    │ Lượt chuyển sang đội KẾ TIẾP  │
 │ + Bốc lá hiệu ứng │    │ trong thứ tự vòng tròn         │
 │ (bài may mắn 🎲)  │    │                                │
-│                    │    │ Nếu TẤT CẢ đội đều sai →      │
-│ Đội trả lời đúng   │    │ → Hiện đáp án đúng              │
-│ TIẾP TỤC LƯỢT     │    │ → Đóng lá bài (không hiệu ứng)│
-└──────────────────┘    │ → Chuyển sang đội tiếp theo   │
+│                    │    │ ⚠️ Nếu 3 đáp án sai liên tiếp  │
+│ Đội trả lời đúng   │    │ → BỎ câu hỏi (không hiện đáp │
+│ TIẾP TỤC LƯỢT     │    │   án, không hiệu ứng)          │
+└──────────────────┘    │ → Đội tiếp theo được quyền     │
+                         │   CHỌN CÂU HỎI MỚI           │
                          └──────────────────────────────┘
 ```
 
@@ -209,7 +210,8 @@ Host tạo game (7 đội, 35 lá bài xáo)
 │       │           + Đội tiếp tục lượt       │
 │       │                                     │
 │       └── SAI ──► Lượt chuyển đội kế       │
-│                   (nếu hết lượt → đóng bài) │
+│                   + Nếu 3 đáp án sai →      │
+│                     BỎ câu, chọn câu mới   │
 │                                             │
 └─────────────────────────────────────────────┘
     │
