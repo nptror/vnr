@@ -70,7 +70,7 @@ export default function PickTeam() {
     const navigate = useNavigate()
 
     const handleJoin = (team) => {
-        console.log('Joined team:', team.id)
+        localStorage.setItem('vnr_my_team', team.id)
         navigate('/play')
     }
 

@@ -586,7 +586,15 @@ export default function Play() {
   const wrapperRef = useRef(null)
   const shadowRef = useRef(null)
 
+  // ── User's selected team (from PickTeam) ──
+  const [myTeamId, setMyTeamId] = useState(() => {
+    try {
+      return localStorage.getItem('vnr_my_team')
+    } catch (e) { return null }
+  })
+
   const currentTeam = teams[currentTeamIdx] ?? ALL_TEAMS[0]
+  const isMyTeam = (teamId) => myTeamId && teamId === myTeamId
 
   // ── Timer ──
   useEffect(() => {
@@ -857,7 +865,7 @@ export default function Play() {
                   </div>
                   <div className="sidebar-card">
                     <div className="sidebar-team-name" style={i === currentTeamIdx ? { color: team.color } : {}}>
-                      {team.name}
+                      {team.name}{isMyTeam(team.id) && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: '#ba1a1a', letterSpacing: '0.05em', textTransform: 'uppercase', border: '1px dashed #ba1a1a', padding: '1px 4px', transform: 'rotate(-3deg)', display: 'inline-block' }}>bạn</span>}
                     </div>
                     <div className={`sidebar-status${i === currentTeamIdx ? ' live' : ' waiting'}`}>
                       {i === currentTeamIdx ? (
@@ -889,7 +897,7 @@ export default function Play() {
                 <div>
                   <div className="team-info-label">NHÓM ĐANG THI ĐẤU</div>
                   <div className="team-info-name" style={{ color: currentTeam.color }}>
-                    {currentTeam.name}
+                    {currentTeam.name}{isMyTeam(currentTeam.id) && <span style={{ marginLeft: 8, fontSize: 13, fontWeight: 700, color: '#ba1a1a', letterSpacing: '0.05em', textTransform: 'uppercase', border: '1px dashed #ba1a1a', padding: '2px 6px', transform: 'rotate(-3deg)', display: 'inline-block' }}>bạn</span>}
                   </div>
                 </div>
                 <div>
@@ -961,7 +969,7 @@ export default function Play() {
                 {teams.filter((_, i) => i !== currentTeamIdx).slice(0, 4).map(team => (
                   <div key={team.id} className="obs-item">
                     <span className="obs-dot" style={{ background: team.color }} />
-                    <span>{team.name}</span>
+                    <span>{team.name}{isMyTeam(team.id) && <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 700, color: '#ba1a1a', border: '1px dashed #ba1a1a', padding: '0 3px', display: 'inline-block' }}>bạn</span>}</span>
                   </div>
                 ))}
               </div>
