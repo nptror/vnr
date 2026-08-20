@@ -1,10 +1,13 @@
 # Setup Supabase Realtime — Hành Trình Đổi Mới
 
 **Architecture:**
-- **Questions + Cards** → giữ trong frontend code (`Host.jsx`)
+- **Questions + Cards** → Host tạo một bộ bài cho mỗi ván mới, lưu trong `game_state`
 - **Game State** → sync qua Supabase (teams, scores, câu hỏi đang mở, xúc xắc, hiệu ứng)
-- **Meme** → giữ trong frontend code (`Host.jsx`)
+- **Meme drop** → kênh Supabase Realtime Broadcast riêng, ephemeral (không lưu DB)
 - **PIN** → set cứng `1986` trong code
+
+All classroom devices must use the same deployment environment so they receive the
+same `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` values.
 
 ## 1. Tạo Project Supabase
 
@@ -22,159 +25,76 @@ Vào **Dashboard → SQL Editor** → Paste `supabase/schema.sql` → Run
 npm install @supabase/supabase-js
 ```
 
-## 4. Tạo file config
+## 4. Configure the frontend environment
 
-```js
-// src/lib/supabase.js
-import { createClient } from '@supabase/supabase-js'
+Create a `.env` file in the project root (or set these values in the deployment
+environment), then restart/rebuild Vite:
 
-export const supabase = createClient(
-  'https://YOUR_PROJECT_ID.supabase.co',
-  'YOUR_ANON_KEY'
-)
+```env
+VITE_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR_ANON_KEY
 ```
 
-## 5. Tạo game khi Host mở trang
+`src/lib/supabase.js` exports `supabase` and `isSupabaseConfigured`. The client is
+`null` until both environment variables are present.
 
-```js
-import { supabase } from '../lib/supabase'
+## 5. Repository layer (`src/game/gameRepository.js`)
 
-// Gọi khi Host mount — tạo game mới trong DB
-const { data } = await supabase.rpc('create_game', { p_pin: '1986' })
-const gameId = data  // UUID của game vừa tạo
-```
+All reads/writes go through this module — pages never call `supabase.from(...)` or
+build `postgres_changes` filters directly.
 
-## 6. Sync Teams & Scores (Database Realtime)
+- `createGame(pin, cardDeck, effectDeck)` — Host calls this once on first load (or
+  resumes an existing `gameId` saved in `localStorage`). Creates the `games` row,
+  the seven `teams` rows (via the `create_game` SQL function) and the single
+  `game_state` row seeded with the shuffled decks.
+- `findGameByPin(pin)` / `joinGame(gameId, teamKey, teamCode)` — used by `/pick-team`
+  to validate a room PIN and a team's classroom code before a device joins.
+- `loadGame(gameId)` — fetches `games`, `teams`, `game_state`, `game_events` for a
+  game in one call; every page calls this on mount and again on every realtime change.
+- `subscribeToGame(gameId, onChange)` — opens one Supabase Realtime channel listening
+  to `postgres_changes` on all four tables and calls `onChange` (which just re-runs
+  `loadGame`) on any insert/update.
+- `saveGameState(gameId, expectedRevision, nextState)` — the only way `game_state` is
+  written. It matches on `game_id AND revision = expectedRevision`; if another writer
+  already advanced the revision, the update matches zero rows and this throws, so the
+  caller reloads instead of silently overwriting a newer state.
+- `saveTeams(gameId, teams)` — upserts team rows (`name`, `color`, `score`,
+  `display_order`) by `(game_id, team_key)`.
+- `appendGameEvent` / `submitAnswerEvent` — Players only ever call
+  `submitAnswerEvent({ gameId, teamKey, cardNum, revision, optionIdx })`, which inserts
+  one `game_events` row of type `PLAYER_ANSWER`. Host is the only reader of these events.
+- `subscribeToMemeDrops(gameId, onDrop)` / `sendMemeDrop(gameId, payload)` — meme
+  reactions use a plain Supabase Realtime **Broadcast** channel (`meme:{gameId}`), not
+  a table. Nothing is persisted; a dropped meme just fades out client-side.
 
-```js
-// Host.jsx — mỗi lần update score, ghi vào DB
-async function updateTeamScore(gameId, teamKey, newScore) {
-  await supabase
-    .from('teams')
-    .update({ score: newScore })
-    .eq('game_id', gameId)
-    .eq('team_key', teamKey)
-}
+## 6. How Host and Play stay in sync
 
-// Play.jsx — lắng nghe realtime thay đổi teams
-useEffect(() => {
-  const channel = supabase
-    .channel('teams-changes')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'teams', filter: `game_id=eq.${gameId}` },
-      (payload) => {
-        // Cập nhật điểm trên UI Play
-        setTeams(prev => prev.map(t =>
-          t.team_key === payload.new.team_key ? { ...t, score: payload.new.score } : t
-        ))
-      }
-    )
-    .subscribe()
-
-  return () => supabase.removeChannel(channel)
-}, [gameId])
-```
-
-## 7. Sync Game State (Broadcast Channels)
-
-Thay `BroadcastChannel` hiện tại bằng Supabase Broadcast:
-
-```js
-// ── Host.jsx: Thay broadcastDiceEvent ──
-function broadcastDiceEvent(data) {
-  supabase.channel('game-dice').send({
-    type: 'broadcast',
-    event: 'dice_roll',
-    payload: data,
-  })
-}
-
-function broadcastGameEvent(data) {
-  supabase.channel('game-events').send({
-    type: 'broadcast',
-    event: 'game_event',
-    payload: data,
-  })
-}
-
-// ── Host.jsx: Lắng nghe đáp án từ Play ──
-useEffect(() => {
-  const channel = supabase.channel('game-events')
-  channel
-    .on('broadcast', { event: 'game_event' }, (p) => {
-      if (p.payload.type === 'PLAY_ANSWER') {
-        handleOptionClick(p.payload.optionIdx)
-      }
-    })
-    .subscribe()
-  return () => supabase.removeChannel(channel)
-}, [])
-
-// ── Host.jsx: Lắng nghe dice từ Play ──
-useEffect(() => {
-  const channel = supabase.channel('game-dice')
-  channel
-    .on('broadcast', { event: 'dice_roll' }, (p) => {
-      handleSyncDice(p.payload)
-    })
-    .subscribe()
-  return () => supabase.removeChannel(channel)
-}, [])
-
-// ── Play.jsx: Lắng nghe câu hỏi từ Host ──
-useEffect(() => {
-  const channel = supabase.channel('game-events')
-  channel
-    .on('broadcast', { event: 'game_event' }, (p) => {
-      const d = p.payload
-      if (d.type === 'QUESTION_OPEN') {
-        setCurrentQuestion(d.card)
-        setTeams(d.teams)
-      } else if (d.type === 'ANSWER_RESULT') {
-        // handle result
-      } else if (d.type === 'GAME_RESET') {
-        setTeams(d.teams)
-      }
-    })
-    .subscribe()
-  return () => supabase.removeChannel(channel)
-}, [])
-
-// ── Play.jsx: Gửi đáp án lên Host ──
-function sendAnswer(optionIdx) {
-  supabase.channel('game-events').send({
-    type: 'broadcast',
-    event: 'game_event',
-    payload: { type: 'PLAY_ANSWER', optionIdx },
-  })
-}
-
-// ── Play.jsx: Gửi dice roll lên Host ──
-function broadcastDiceEvent(data) {
-  supabase.channel('game-dice').send({
-    type: 'broadcast',
-    event: 'dice_roll',
-    payload: data,
-  })
-}
-```
-
-## Tóm tắt flow
+There are no Broadcast Channels or client-generated dice results. Everything flows
+through Postgres rows and `postgres_changes`, except the purely cosmetic meme drops:
 
 ```
-┌──────────┐                              ┌──────────┐
-│  Host    │  Broadcast: QUESTION_OPEN    │  Play    │
-│          │ ────────────────────────────► │          │
-│          │                              │ (Player) │
-│          │  Broadcast: PLAY_ANSWER      │          │
-│          │ ◄──────────────────────────── │          │
-└────┬─────┘                              └────┬─────┘
-     │  DB: teams.score UPDATE                  │
-     │ ────────────────────────► Supabase ──────│
-     │  Realtime: postgres_changes              │
-     │ ◄─────────────────────────  ◄────────────│
+┌──────────┐   game_events insert: PLAYER_ANSWER    ┌──────────┐
+│  Play    │ ───────────────────────────────────────►│  Host    │
+│ (Player) │                                          │          │
+│          │◄───────────────────────────────────────  │          │
+└──────────┘   postgres_changes: games/teams/         └──────────┘
+               game_state/game_events (both directions
+               reload via loadGame on every change)
 ```
 
-- **Broadcast Channels** → nhanh, cho câu hỏi, đáp án, dice (phemeral)
-- **Database Realtime** → persistent, cho scores teams (reload vẫn giữ)
+- **Host** is the only writer of `game_state` and `teams`. Every accepted transition
+  increments `game_state.revision`; a stale write (mismatched revision) is rejected
+  by `saveGameState`.
+- **Player** never mutates `game_state`/`teams` directly. It appends a `PLAYER_ANSWER`
+  event; Host validates the event's `cardNum`/`revision`/`teamKey` against the current
+  `game_state` before applying it, so a late or duplicate submission is ignored.
+- Wrong answers rotate through the attempt order; once 3 options have been marked
+  wrong (or the attempt order is exhausted), Host abandons the card immediately — no
+  correct answer is revealed and no effect is drawn — and the next team gets to pick a
+  new card.
+- A dice result is generated once, by Host, and written to `game_state.dice_value`
+  before it is revealed — Player only renders the animation from that shared value.
+- Reload on either device re-reads the latest rows via `loadGame`, so mid-question,
+  mid-effect and finished-ranking states all survive a refresh.
+- Meme drops are the one exception to "Supabase table = source of truth": they use
+  Realtime Broadcast because they are ephemeral and never affect game state.

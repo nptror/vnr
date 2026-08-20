@@ -1,0 +1,186 @@
+import { supabase } from "../lib/supabase";
+
+function getClient() {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  return supabase;
+}
+
+function throwOnError(error) {
+  if (error) throw error;
+}
+
+export async function createGame(pin, cardDeck, effectDeck) {
+  const client = getClient();
+  const { data: gameId, error } = await client.rpc("create_game", { p_pin: pin });
+  throwOnError(error);
+
+  await saveGameState(gameId, 0, {
+    phase: "selecting_card",
+    card_deck: cardDeck,
+    used_card_numbers: [],
+    effect_deck: effectDeck,
+    effect_cursor: 0,
+    revision: 1,
+  });
+
+  const { error: gameError } = await client
+    .from("games")
+    .update({ status: "playing" })
+    .eq("id", gameId);
+  throwOnError(gameError);
+  return gameId;
+}
+
+export async function setGameStatus(gameId, status) {
+  const { error } = await getClient().from("games").update({ status }).eq("id", gameId);
+  throwOnError(error);
+}
+
+export async function findGameByPin(pin) {
+  const { data, error } = await getClient()
+    .from("games")
+    .select("*")
+    .eq("pin", pin)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  throwOnError(error);
+  return data;
+}
+
+export async function joinGame(gameId, teamKey, teamCode) {
+  const { data, error } = await getClient()
+    .from("teams")
+    .select("game_id, team_key")
+    .eq("game_id", gameId)
+    .eq("team_key", teamKey)
+    .eq("team_code", teamCode)
+    .maybeSingle();
+  throwOnError(error);
+  if (!data) throw new Error("Invalid game, team, or team code.");
+  return { gameId: data.game_id, teamKey: data.team_key };
+}
+
+export async function loadGame(gameId) {
+  const client = getClient();
+  const [gameResult, teamsResult, stateResult, eventsResult] = await Promise.all([
+    client.from("games").select("*").eq("id", gameId).single(),
+    client.from("teams").select("*").eq("game_id", gameId).order("display_order"),
+    client.from("game_state").select("*").eq("game_id", gameId).single(),
+    client.from("game_events").select("*").eq("game_id", gameId).order("created_at"),
+  ]);
+  throwOnError(gameResult.error);
+  throwOnError(teamsResult.error);
+  throwOnError(stateResult.error);
+  throwOnError(eventsResult.error);
+  return {
+    game: gameResult.data,
+    teams: teamsResult.data,
+    state: stateResult.data,
+    events: eventsResult.data,
+  };
+}
+
+export function subscribeToGame(gameId, onChange) {
+  const client = getClient();
+  const channel = client
+    .channel(`game:${gameId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "games", filter: `id=eq.${gameId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "teams", filter: `game_id=eq.${gameId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "game_state", filter: `game_id=eq.${gameId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "game_events", filter: `game_id=eq.${gameId}` }, onChange)
+    .subscribe();
+  return () => client.removeChannel(channel);
+}
+
+export async function saveGameState(gameId, expectedRevision, nextState) {
+  const state = { ...nextState };
+  delete state.id;
+  delete state.game_id;
+  delete state.updated_at;
+  const { data, error } = await getClient()
+    .from("game_state")
+    .update(state)
+    .eq("game_id", gameId)
+    .eq("revision", expectedRevision)
+    .select()
+    .maybeSingle();
+  throwOnError(error);
+  if (!data) throw new Error("Game state changed before it could be saved.");
+  return data;
+}
+
+export async function saveTeams(gameId, teams) {
+  const rows = teams.map(({ team_key, team_code, name, color, score, display_order }) => ({
+    game_id: gameId,
+    team_key,
+    team_code,
+    name,
+    color,
+    score,
+    display_order,
+  }));
+  const { data, error } = await getClient()
+    .from("teams")
+    .upsert(rows, { onConflict: "game_id,team_key" })
+    .select();
+  throwOnError(error);
+  return data;
+}
+
+export async function appendGameEvent(gameId, eventType, payload, createdBy) {
+  const { data, error } = await getClient()
+    .from("game_events")
+    .insert({ game_id: gameId, event_type: eventType, payload, created_by: createdBy })
+    .select()
+    .single();
+  throwOnError(error);
+  return data;
+}
+
+export function submitAnswerEvent({ gameId, teamKey, cardNum, revision, optionIdx }) {
+  return appendGameEvent(
+    gameId,
+    "PLAYER_ANSWER",
+    { cardNum, revision, optionIdx },
+    teamKey
+  );
+}
+
+// Meme drops are ephemeral and cosmetic only — they use Supabase Realtime
+// Broadcast (no table, nothing persisted) instead of a game_events row.
+const memeChannels = new Map();
+
+function ensureMemeChannel(gameId) {
+  const client = getClient();
+  let channel = memeChannels.get(gameId);
+  if (!channel) {
+    channel = client.channel(`meme:${gameId}`);
+    memeChannels.set(gameId, channel);
+  }
+  return channel;
+}
+
+export function subscribeToMemeDrops(gameId, onDrop) {
+  const channel = ensureMemeChannel(gameId);
+  channel.on("broadcast", { event: "meme_drop" }, ({ payload }) => onDrop(payload));
+  if (channel.state !== "joined" && channel.state !== "joining") channel.subscribe();
+  return () => {
+    getClient().removeChannel(channel);
+    memeChannels.delete(gameId);
+  };
+}
+
+export function sendMemeDrop(gameId, payload) {
+  const channel = ensureMemeChannel(gameId);
+  if (channel.state === "joined") {
+    return channel.send({ type: "broadcast", event: "meme_drop", payload });
+  }
+  return new Promise((resolve) => {
+    channel.subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        channel.send({ type: "broadcast", event: "meme_drop", payload }).then(resolve);
+      }
+    });
+  });
+}
