@@ -3,6 +3,7 @@
 **Architecture:**
 - **Questions + Cards** → giữ trong frontend code (`Host.jsx`)
 - **Game State** → sync qua Supabase (teams, scores, câu hỏi đang mở, xúc xắc, hiệu ứng)
+- **Meme** → giữ trong frontend code (`Host.jsx`)
 - **PIN** → set cứng `1986` trong code
 
 ## 1. Tạo Project Supabase

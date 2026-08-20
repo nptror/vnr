@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import "./Host.css";
+import MemeDrop, { useMemeDrop } from "../components/MemeDrop.jsx";
 
 function broadcastDiceEvent(data) {
   try {
@@ -497,6 +498,42 @@ export default function Host() {
   const cubeRef = useRef(null);
   const wrapperRef = useRef(null);
   const shadowRef = useRef(null);
+
+  // ── Meme Drop state ──
+  const { activeMemes, addMeme } = useMemeDrop();
+
+  // ── Listen for meme drops from Play pages ──
+  useEffect(() => {
+    const handleMemeSync = (data) => {
+      if (data?.type === 'MEME_DROP') {
+        addMeme({
+          teamId: data.teamId,
+          teamName: data.teamName,
+          teamColor: data.teamColor,
+          memeId: data.memeId,
+          x: data.x,
+        });
+      }
+    };
+
+    let channel;
+    try {
+      channel = new BroadcastChannel('vnr_meme_sync');
+      channel.onmessage = (e) => { if (e.data) handleMemeSync(e.data); };
+    } catch (e) {}
+
+    const handleStorage = (e) => {
+      if (e.key === 'vnr_meme_event' && e.newValue) {
+        try { handleMemeSync(JSON.parse(e.newValue)); } catch (err) {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      if (channel) channel.close();
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [addMeme]);
 
   const [showWinner, setShowWinner] = useState(false);
   const [winnerName, setWinnerName] = useState("");
@@ -1244,6 +1281,9 @@ export default function Host() {
           )}
         </div>
       </div>
+
+      {/* Meme Drop Overlay */}
+      <MemeDrop activeMemes={activeMemes} />
     </div>
   );
 }

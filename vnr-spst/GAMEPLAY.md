@@ -118,7 +118,7 @@ Khi trả lời đúng, đội đó bốc **1 lá bài hiệu ứng** từ bộ 
 
 ### Phân bổ bài hiệu ứng
 
-| Loại | Số lá | Tỷ lệ |
+| Loại | Số lá | Tỷ lệ |    
 |------|-------|-------|
 | 🎲 Rút Điểm May Mắn (+) | 12 | 37.5% |
 | 🎲 Tung Xúc Xắc Trừ Điểm (-) | 4 | 12.5% |

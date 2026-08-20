@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import MemePanel from '../components/MemePanel.jsx'
 
 // ─── Danh sách gốc (7 đội) ────────────────────────────────────
 const ALL_TEAMS = [
@@ -553,6 +554,18 @@ function broadcastPlayAnswer(data) {
   } catch (e) {}
 }
 
+function broadcastMemeDrop(data) {
+  const payload = { ...data, _ts: Date.now() };
+  try {
+    const channel = new BroadcastChannel('vnr_meme_sync');
+    channel.postMessage(payload);
+    channel.close();
+  } catch (e) {}
+  try {
+    localStorage.setItem('vnr_meme_event', JSON.stringify(payload));
+  } catch (e) {}
+}
+
 export default function Play() {
   const navigate = useNavigate()
 
@@ -819,6 +832,19 @@ export default function Play() {
     setResult(null)
   }
 
+  // ── Meme drop handler ──
+  const handleMemeDrop = useCallback((memeId) => {
+    broadcastMemeDrop({
+      type: 'MEME_DROP',
+      teamId: currentTeam.id,
+      teamName: currentTeam.name,
+      teamColor: currentTeam.color,
+      memeId,
+      x: 10 + Math.random() * 70, // random horizontal (10% - 80%)
+      y: 25 + Math.random() * 40, // random vertical (25% - 65%) – giữa màn hình
+    })
+  }, [currentTeam])
+
   return (
     <>
       <link
@@ -973,6 +999,13 @@ export default function Play() {
                   </div>
                 ))}
               </div>
+
+              {/* Meme Panel */}
+              <MemePanel
+                onDrop={handleMemeDrop}
+                disabled={diceRolling}
+                teamColor={currentTeam.color}
+              />
 
               {/* Next button (visible after answered) */}
               {revealed && (
