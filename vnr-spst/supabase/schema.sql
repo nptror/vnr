@@ -26,11 +26,13 @@ CREATE TABLE teams (
   id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   game_id       UUID NOT NULL REFERENCES games(id) ON DELETE CASCADE,
   team_key      TEXT NOT NULL,            -- 'red', 'blue', 'yellow', ...
+  team_code     TEXT NOT NULL DEFAULT '', -- stable code used by classroom devices
   name          TEXT NOT NULL,
   color         TEXT NOT NULL DEFAULT '#888888',
   score         INT NOT NULL DEFAULT 0,
   display_order INT NOT NULL DEFAULT 0,
-  UNIQUE(game_id, team_key)
+  UNIQUE(game_id, team_key),
+  UNIQUE(game_id, team_code)
 );
 
 -- ============================================================
@@ -40,6 +42,18 @@ CREATE TABLE teams (
 CREATE TABLE game_state (
   id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   game_id             UUID NOT NULL REFERENCES games(id) ON DELETE CASCADE UNIQUE,
+
+  -- Whole-game state kept in the database so a device can reconnect safely.
+  phase               TEXT NOT NULL DEFAULT 'selecting_card'
+                      CHECK (phase IN ('selecting_card', 'answering', 'explaining', 'resolving_effect', 'closing_card', 'finished')),
+  card_deck           JSONB NOT NULL DEFAULT '[]'::JSONB,
+  used_card_numbers   JSONB NOT NULL DEFAULT '[]'::JSONB,
+  effect_deck         JSONB NOT NULL DEFAULT '[]'::JSONB,
+  effect_cursor       INT NOT NULL DEFAULT 0,
+  deadline_at         TIMESTAMPTZ,
+  answering_team_key  TEXT,
+  answer_submission_team_key TEXT,
+  revision            INT NOT NULL DEFAULT 0,
 
   -- Câu hỏi đang mở
   active_card_num     INT,                                   -- NULL = chưa có câu hỏi
@@ -76,6 +90,33 @@ CREATE TABLE game_state (
 
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Keep upgrades safe for projects that created the original schema already.
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS phase TEXT NOT NULL DEFAULT 'selecting_card'
+  CHECK (phase IN ('selecting_card', 'answering', 'explaining', 'resolving_effect', 'closing_card', 'finished'));
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS card_deck JSONB NOT NULL DEFAULT '[]'::JSONB;
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS used_card_numbers JSONB NOT NULL DEFAULT '[]'::JSONB;
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS effect_deck JSONB NOT NULL DEFAULT '[]'::JSONB;
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS effect_cursor INT NOT NULL DEFAULT 0;
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS deadline_at TIMESTAMPTZ;
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS answering_team_key TEXT;
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS answer_submission_team_key TEXT;
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS revision INT NOT NULL DEFAULT 0;
+
+ALTER TABLE teams ADD COLUMN IF NOT EXISTS team_code TEXT NOT NULL DEFAULT '';
+UPDATE teams SET team_code = team_key WHERE team_code = '';
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'teams_game_id_team_code_key'
+      AND conrelid = 'teams'::regclass
+  ) THEN
+    ALTER TABLE teams ADD CONSTRAINT teams_game_id_team_code_key UNIQUE (game_id, team_code);
+  END IF;
+END;
+$$;
 
 -- ============================================================
 -- 4. BANG GAME_EVENTS — Nhật ký sự kiện (audit log)
@@ -138,11 +179,9 @@ BEGIN
     {"key":"lam",    "name":"Đội Lam",  "color":"#2563EB", "order":6}
   ]'::JSONB)
   LOOP
-    INSERT INTO teams (game_id, team_key, name, color, display_order)
-    VALUES (v_game_id, v_team_data->>'key', v_team_data->>'name', v_team_data->>'color', (v_team_data->>'order')::INT);
+    INSERT INTO teams (game_id, team_key, team_code, name, color, display_order)
+    VALUES (v_game_id, v_team_data->>'key', v_team_data->>'key', v_team_data->>'name', v_team_data->>'color', (v_team_data->>'order')::INT);
   END LOOP;
-
-  UPDATE games SET status = 'playing' WHERE id = v_game_id;
 
   RETURN v_game_id;
 END;
