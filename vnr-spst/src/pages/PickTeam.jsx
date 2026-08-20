@@ -1,11 +1,15 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { findGameByPin, joinGame } from '../game/gameRepository'
+import { isSupabaseConfigured } from '../lib/supabase'
+
+const SESSION_KEY = 'vnr_game_session'
 
 const TEAMS = [
     {
         id: 'red',
         name: 'Đội Đỏ',
         color: '#7A2430',
-        shadow: '#5c0c1c',
         icon: 'star',
         desc: 'Lực lượng nòng cốt, tiên phong trong mọi thử thách.',
         rotate: '-0.2deg',
@@ -14,7 +18,6 @@ const TEAMS = [
         id: 'blue',
         name: 'Đội Xanh',
         color: '#1F4E66',
-        shadow: '#1F4E66',
         icon: 'menu_book',
         desc: 'Trí tuệ chiến lược, nền tảng của tri thức.',
         rotate: '0.4deg',
@@ -23,7 +26,6 @@ const TEAMS = [
         id: 'yellow',
         name: 'Đội Vàng',
         color: '#B8860B',
-        shadow: '#B8860B',
         icon: 'grass',
         desc: 'Gắn kết bền bỉ, mang lại sự phồn vinh.',
         rotate: '-0.5deg',
@@ -32,7 +34,6 @@ const TEAMS = [
         id: 'purple',
         name: 'Đội Tím',
         color: '#4A3A6B',
-        shadow: '#4A3A6B',
         icon: 'local_fire_department',
         desc: 'Ngọn đuốc sáng tạo, dẫn lối tương lai.',
         rotate: '0.1deg',
@@ -41,7 +42,6 @@ const TEAMS = [
         id: 'orange',
         name: 'Đội Cam',
         color: '#D97706',
-        shadow: '#D97706',
         icon: 'flag',
         desc: 'Xung kích, đi đầu trong mọi phong trào đổi mới.',
         rotate: '0.3deg',
@@ -50,7 +50,6 @@ const TEAMS = [
         id: 'pink',
         name: 'Đội Hồng',
         color: '#DB2777',
-        shadow: '#DB2777',
         icon: 'favorite',
         desc: 'Gắn kết cộng đồng, lan tỏa giá trị nhân văn.',
         rotate: '-0.3deg',
@@ -59,7 +58,6 @@ const TEAMS = [
         id: 'lam',
         name: 'Đội Lam',
         color: '#2563EB',
-        shadow: '#2563EB',
         icon: 'verified_user',
         desc: 'Bảo vệ thành quả, giữ vững kỷ cương hệ thống.',
         rotate: '0.2deg',
@@ -68,10 +66,38 @@ const TEAMS = [
 
 export default function PickTeam() {
     const navigate = useNavigate()
+    const [pin, setPin] = useState('')
+    const [teamCode, setTeamCode] = useState('')
+    const [selectedTeam, setSelectedTeam] = useState(null)
+    const [error, setError] = useState(null)
+    const [joining, setJoining] = useState(false)
 
-    const handleJoin = (team) => {
-        localStorage.setItem('vnr_my_team', team.id)
-        navigate('/play')
+    const openJoinForm = (team) => {
+        setSelectedTeam(team)
+        setTeamCode('')
+        setError(null)
+    }
+
+    const handleJoin = async (e) => {
+        e.preventDefault()
+        if (!selectedTeam) return
+        if (!isSupabaseConfigured) {
+            setError('Supabase chưa được cấu hình.')
+            return
+        }
+        setJoining(true)
+        setError(null)
+        try {
+            const game = await findGameByPin(pin.trim())
+            if (!game) throw new Error('Không tìm thấy phòng chơi với mã PIN này.')
+            const { gameId, teamKey } = await joinGame(game.id, selectedTeam.id, teamCode.trim())
+            localStorage.setItem(SESSION_KEY, JSON.stringify({ gameId, teamKey }))
+            navigate('/play')
+        } catch (err) {
+            setError(err.message || 'Không thể tham gia. Kiểm tra lại PIN và mã đội.')
+        } finally {
+            setJoining(false)
+        }
     }
 
     return (
@@ -93,12 +119,9 @@ export default function PickTeam() {
           font-family: 'Noto Sans', sans-serif;
           color: #141b2c;
           background-color: #f4f1ea;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
           width: 100%;
           box-sizing: border-box;
         }
-
-        /* Nav */
         .pt-nav {
           background: #faf8ff;
           border-bottom: 3px double #887272;
@@ -123,17 +146,6 @@ export default function PickTeam() {
           color: #5c0c1c;
           text-transform: uppercase;
         }
-        .pt-nav-actions { display: flex; gap: 0.5rem; }
-        .pt-nav-btn {
-          background: none; border: none; cursor: pointer;
-          color: #5c0c1c; padding: 0.5rem; border-radius: 9999px;
-          line-height: 1; transition: background 0.15s;
-          display: flex; align-items: center;
-        }
-        .pt-nav-btn:hover { background: #ffdadb; }
-        .pt-nav-btn .material-symbols-outlined { font-size: 24px; }
-
-        /* Main */
         .pt-main {
           flex: 1;
           display: flex;
@@ -142,32 +154,10 @@ export default function PickTeam() {
           justify-content: center;
           padding: 3rem 2rem;
           position: relative;
-          overflow: hidden;
         }
-
-        /* Stamp */
-        .pt-stamp {
-          position: absolute;
-          top: 3rem; right: 3rem;
-          width: 8rem; height: 8rem;
-          border-radius: 9999px;
-          border: 2px solid #ba1a1a;
-          color: #ba1a1a;
-          transform: rotate(-15deg);
-          opacity: 0.8;
-          display: flex; align-items: center; justify-content: center;
-          text-align: center;
-          font-family: 'Noto Serif', serif;
-          font-size: 12px; font-weight: 700;
-          letter-spacing: 0.08em; text-transform: uppercase;
-          line-height: 1.3;
-          pointer-events: none; user-select: none;
-        }
-
-        /* Header */
         .pt-header {
           text-align: center;
-          margin-bottom: 4rem;
+          margin-bottom: 2.5rem;
           max-width: 768px;
         }
         .pt-header h1 {
@@ -184,8 +174,19 @@ export default function PickTeam() {
           font-size: 18px; line-height: 28px;
           color: #554243; font-style: italic;
         }
-
-        /* Grid */
+        .pt-pin-row {
+          display: flex; gap: 0.75rem; align-items: center; justify-content: center;
+          margin-bottom: 3rem; flex-wrap: wrap;
+        }
+        .pt-pin-row label {
+          font-family: 'Noto Serif', serif; font-weight: 700;
+          font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
+          color: #554243;
+        }
+        .pt-pin-row input {
+          border: 1px solid #887272; padding: 0.6rem 1rem; font-size: 16px;
+          background: #fff; min-width: 140px;
+        }
         .pt-grid {
           display: grid;
           grid-template-columns: repeat(1, 1fr);
@@ -195,8 +196,6 @@ export default function PickTeam() {
         }
         @media (min-width: 640px)  { .pt-grid { grid-template-columns: repeat(2, 1fr); } }
         @media (min-width: 1024px) { .pt-grid { grid-template-columns: repeat(4, 1fr); } }
-
-        /* Team card */
         .pt-card {
           background: #ffffff;
           border: 1px solid #887272;
@@ -206,25 +205,19 @@ export default function PickTeam() {
           flex-direction: column;
           align-items: center;
           justify-content: space-between;
-          min-height: 300px;
-          box-shadow: 0 1px 0 0 #d3d9f0;
-          transition: transform 0.2s, box-shadow 0.2s;
+          min-height: 260px;
           box-sizing: border-box;
-        }
-        .pt-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 4px 0 0 #d3d9f0;
         }
         .pt-card-body { text-align: center; width: 100%; }
         .pt-card-icon {
-          font-size: 64px !important;
+          font-size: 56px !important;
           margin-bottom: 1rem;
           display: block;
           font-variation-settings: 'FILL' 1;
         }
         .pt-card-name {
           font-family: 'Noto Serif', serif;
-          font-size: 24px; line-height: 32px; font-weight: 600;
+          font-size: 22px; line-height: 30px; font-weight: 600;
           color: #141b2c;
           margin: 0 0 0.75rem;
         }
@@ -233,11 +226,9 @@ export default function PickTeam() {
           margin: 0 0 1rem; border: none;
         }
         .pt-card-desc {
-          font-size: 15px; line-height: 22px; color: #554243;
+          font-size: 14px; line-height: 20px; color: #554243;
           margin-bottom: 1.5rem;
         }
-
-        /* Join button */
         .pt-join-btn {
           width: 100%;
           font-family: 'Noto Serif', serif;
@@ -247,23 +238,41 @@ export default function PickTeam() {
           border: 2px solid;
           cursor: pointer;
           color: #fff;
-          transition: background 0.15s, color 0.15s, transform 0.1s, box-shadow 0.1s;
         }
-        .pt-join-btn:hover {
-          background: transparent !important;
-          transform: translateY(-1px);
+        .pt-modal-backdrop {
+          position: fixed; inset: 0; background: rgba(20,16,10,0.55);
+          display: flex; align-items: center; justify-content: center; z-index: 80;
+          padding: 20px;
         }
-
-        /* Footer */
+        .pt-modal {
+          background: #fdfbf7; border: 3px double #141b2c; padding: 2rem;
+          max-width: 380px; width: 100%;
+        }
+        .pt-modal h3 {
+          font-family: 'Noto Serif', serif; font-size: 18px; margin: 0 0 1rem;
+        }
+        .pt-modal label {
+          display: block; font-size: 12px; font-weight: 700; letter-spacing: 0.06em;
+          text-transform: uppercase; color: #554243; margin-bottom: 4px; margin-top: 12px;
+        }
+        .pt-modal input {
+          width: 100%; box-sizing: border-box; border: 1px solid #887272;
+          padding: 0.6rem 0.75rem; font-size: 16px;
+        }
+        .pt-modal-actions { display: flex; gap: 0.5rem; margin-top: 1.5rem; }
+        .pt-modal-actions button {
+          flex: 1; padding: 0.6rem; font-family: 'Noto Serif', serif;
+          font-weight: 700; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase;
+          border: 1px solid #887272; cursor: pointer; background: #fff;
+        }
+        .pt-modal-actions button.primary { background: #7a2430; color: #fff; border-color: #7a2430; }
+        .pt-modal-error { color: #ba1a1a; font-size: 13px; margin-top: 0.75rem; }
         .pt-footer {
           background: #faf8ff;
           border-top: 0.5pt solid #887272;
           width: 100%;
           padding: 1.5rem 2rem;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.5rem;
+          text-align: center;
           margin-top: auto;
         }
         .pt-footer-copy {
@@ -272,52 +281,38 @@ export default function PickTeam() {
           letter-spacing: 0.1em; text-transform: uppercase;
           color: #7b5800;
         }
-        .pt-footer-links { display: flex; gap: 1.5rem; }
-        .pt-footer-links a {
-          font-size: 12px; line-height: 16px; font-weight: 500;
-          color: #554243; font-style: italic; text-decoration: none;
-          transition: color 0.15s;
-        }
-        .pt-footer-links a:hover { color: #5c0c1c; }
       `}</style>
 
             <div className="pt-page">
-                {/* Nav */}
                 <nav className="pt-nav">
                     <div className="pt-nav-inner">
                         <span className="pt-nav-title">Hành Trình Đổi Mới</span>
-                        <div className="pt-nav-actions">
-                            <button className="pt-nav-btn" title="Lịch sử">
-                                <span className="material-symbols-outlined">history_edu</span>
-                            </button>
-                            <button className="pt-nav-btn" title="Cơ quan">
-                                <span className="material-symbols-outlined">account_balance</span>
-                            </button>
-                        </div>
                     </div>
                 </nav>
 
-                {/* Main */}
                 <main className="pt-main">
-                    {/* Stamp */}
-                    <div className="pt-stamp">VĂN KIỆN<br />ĐẢNG</div>
-
-                    {/* Header */}
                     <header className="pt-header">
                         <h1>XÁC ĐỊNH ĐƠN VỊ CHIẾN ĐẤU</h1>
-                        <p>Vui lòng chọn đội ngũ của bạn để bắt đầu hành trình.</p>
+                        <p>Nhập mã PIN phòng chơi, chọn đội của bạn và nhập mã đội để tham gia.</p>
                     </header>
 
-                    {/* Team Grid */}
+                    <div className="pt-pin-row">
+                        <label htmlFor="pt-pin">Mã PIN phòng</label>
+                        <input id="pt-pin" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="1986" />
+                    </div>
+
+                    {!isSupabaseConfigured && (
+                        <div className="pt-modal-error" style={{ marginBottom: 24 }}>
+                            Supabase chưa được cấu hình — không thể tham gia phòng chơi.
+                        </div>
+                    )}
+
                     <div className="pt-grid">
                         {TEAMS.map((team) => (
                             <article
                                 key={team.id}
                                 className="pt-card"
-                                style={{
-                                    borderTopColor: team.color,
-                                    transform: `rotate(${team.rotate})`,
-                                }}
+                                style={{ borderTopColor: team.color, transform: `rotate(${team.rotate})` }}
                             >
                                 <div className="pt-card-body">
                                     <span
@@ -333,20 +328,9 @@ export default function PickTeam() {
 
                                 <button
                                     className="pt-join-btn"
-                                    style={{
-                                        backgroundColor: team.color,
-                                        borderColor: team.color,
-                                        '--team-color': team.color,
-                                    }}
-                                    onMouseOver={(e) => {
-                                        e.currentTarget.style.backgroundColor = 'transparent'
-                                        e.currentTarget.style.color = team.color
-                                    }}
-                                    onMouseOut={(e) => {
-                                        e.currentTarget.style.backgroundColor = team.color
-                                        e.currentTarget.style.color = '#fff'
-                                    }}
-                                    onClick={() => handleJoin(team)}
+                                    style={{ backgroundColor: team.color, borderColor: team.color }}
+                                    disabled={!pin.trim() || !isSupabaseConfigured}
+                                    onClick={() => openJoinForm(team)}
                                 >
                                     THAM GIA
                                 </button>
@@ -355,17 +339,36 @@ export default function PickTeam() {
                     </div>
                 </main>
 
-                {/* Footer */}
                 <footer className="pt-footer">
-                    <div className="pt-footer-copy">
-                        © 1986 BAN TUYÊN GIÁO TRUNG ƯƠNG - LƯU TRỮ QUỐC GIA
-                    </div>
-                    <ul className="pt-footer-links">
-                        <li><a href="#">Bảo mật</a></li>
-                        <li><a href="#">Điều lệ</a></li>
-                        <li><a href="#">Lưu trữ</a></li>
-                    </ul>
+                    <div className="pt-footer-copy">© 1986 BAN TUYÊN GIÁO TRUNG ƯƠNG - LƯU TRỮ QUỐC GIA</div>
                 </footer>
+
+                {selectedTeam && (
+                    <div className="pt-modal-backdrop" onClick={() => !joining && setSelectedTeam(null)}>
+                        <div className="pt-modal" onClick={(e) => e.stopPropagation()}>
+                            <h3 style={{ color: selectedTeam.color }}>Tham gia {selectedTeam.name}</h3>
+                            <form onSubmit={handleJoin}>
+                                <label htmlFor="pt-code">Mã đội (do Host cung cấp)</label>
+                                <input
+                                    id="pt-code"
+                                    autoFocus
+                                    value={teamCode}
+                                    onChange={(e) => setTeamCode(e.target.value)}
+                                    placeholder={selectedTeam.id}
+                                />
+                                {error && <div className="pt-modal-error">{error}</div>}
+                                <div className="pt-modal-actions">
+                                    <button type="button" onClick={() => setSelectedTeam(null)} disabled={joining}>
+                                        Hủy
+                                    </button>
+                                    <button type="submit" className="primary" disabled={joining || !teamCode.trim()}>
+                                        {joining ? 'Đang vào...' : 'Xác nhận'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
             </div>
         </>
     )

@@ -1,31 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getCardByNumber } from '../game/catalog'
+import { rotationForDiceValue } from '../game/transitions'
+import { loadGame, subscribeToGame, submitAnswerEvent, sendMemeDrop } from '../game/gameRepository'
+import { isSupabaseConfigured } from '../lib/supabase'
 import MemePanel from '../components/MemePanel.jsx'
 
-// ─── Danh sách gốc (7 đội) ────────────────────────────────────
-const ALL_TEAMS = [
-  { id: 'red',    name: 'Đội Đỏ',   color: '#7A2430' },
-  { id: 'blue',   name: 'Đội Xanh', color: '#1F4E66' },
-  { id: 'yellow', name: 'Đội Vàng', color: '#B8860B' },
-  { id: 'purple', name: 'Đội Tím',  color: '#4A3A6B' },
-  { id: 'orange', name: 'Đội Cam',  color: '#D97706' },
-  { id: 'pink',   name: 'Đội Hồng', color: '#DB2777' },
-  { id: 'lam',    name: 'Đội Lam',  color: '#2563EB' },
-]
-
-const SAMPLE_QUESTION = {
-  text: 'Căn cứ vào tinh thần Nghị quyết Đại hội VI, đồng chí hãy nêu rõ những biện pháp trọng tâm nhằm xóa bỏ cơ chế tập trung quan liêu bao cấp, chuyển sang hạch toán kinh doanh xã hội chủ nghĩa trong giai đoạn đầu của thời kỳ quá độ?',
-  options: [
-    'Duy trì cơ chế quản lý cũ nhưng tăng cường kiểm tra, giám sát chặt chẽ hơn.',
-    'Thực hiện khoán sản phẩm đến nhóm và người lao động trong nông nghiệp.',
-    'Đổi mới cơ chế quản lý kinh tế, thực hiện hạch toán kinh doanh xã hội chủ nghĩa.',
-    'Tập trung phát triển công nghiệp nặng làm nền tảng cho nền kinh tế quốc dân.',
-  ],
-  correct: 2,
-}
-
+const SESSION_KEY = 'vnr_game_session'
 const OPTION_LABELS = ['A', 'B', 'C', 'D']
-const ANSWER_TIME = 60 // giây
+const ANSWER_SECONDS = 15
 
 const PLAY_STYLE = `
   .play-page {
@@ -68,15 +51,6 @@ const PLAY_STYLE = `
     border-bottom: 4px double #887272;
     padding-bottom: 2px;
   }
-  .play-nav-actions { display: flex; gap: 0.5rem; }
-  .play-nav-btn {
-    background: none; border: none; cursor: pointer;
-    color: #5c0c1c; padding: 0.5rem; border-radius: 9999px;
-    display: flex; align-items: center;
-    transition: background 0.15s;
-  }
-  .play-nav-btn:hover { background: #ffdadb; }
-  .play-nav-btn .material-symbols-outlined { font-size: 24px; }
 
   /* ── Body layout ── */
   .play-body {
@@ -178,16 +152,6 @@ const PLAY_STYLE = `
     0%, 100% { opacity: 1; }
     50% { opacity: 0.3; }
   }
-  .sidebar-mini-stamp {
-    position: absolute; top: 6px; right: 6px;
-    border: 1px dashed #5c0c1c;
-    color: #5c0c1c;
-    font-size: 9px; font-weight: 700;
-    letter-spacing: 0.08em; text-transform: uppercase;
-    padding: 1px 4px;
-    transform: rotate(15deg);
-    opacity: 0.6;
-  }
 
   /* ── Main content ── */
   .play-main {
@@ -213,19 +177,6 @@ const PLAY_STYLE = `
     transform: rotate(-0.2deg);
   }
   @media (min-width: 768px) { .play-doc { padding: 3rem; } }
-
-  /* Doc shadow layer */
-  .play-doc::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border: 1px solid #887272;
-    transform: translate(4px, 4px);
-    z-index: -1;
-    background: #d3d9f0;
-    opacity: 0.2;
-    pointer-events: none;
-  }
 
   /* ── Team info bar ── */
   .team-info-bar {
@@ -349,8 +300,6 @@ const PLAY_STYLE = `
     background: #faf8ff;
     font-size: 12px; font-weight: 500;
   }
-  .obs-item.offline { opacity: 0.5; }
-  .obs-item.offline span { text-decoration: line-through; }
   .obs-dot {
     width: 8px; height: 8px;
     border-radius: 9999px; flex-shrink: 0;
@@ -368,7 +317,7 @@ const PLAY_STYLE = `
   }
   .result-banner.correct { border-color: #3F5D45; color: #3F5D45; background: #e8f5e9; }
   .result-banner.wrong   { border-color: #ba1a1a; color: #ba1a1a; background: #ffdad6; }
-  .result-banner.timeout { border-color: #D97706; color: #D97706; background: #fff8e1; }
+  .result-banner.pending { border-color: #554243; color: #554243; background: #f1f3ff; }
 
   /* ── Footer ── */
   .play-footer {
@@ -390,12 +339,6 @@ const PLAY_STYLE = `
   }
   @media (min-width: 640px) { .play-footer-inner { flex-direction: row; gap: 0; } }
   .play-footer-copy { font-size: 12px; color: #554243; }
-  .play-footer-links { display: flex; gap: 1.5rem; }
-  .play-footer-links a {
-    font-size: 12px; color: #554243; text-decoration: none;
-    transition: color 0.15s;
-  }
-  .play-footer-links a:hover { color: #5c0c1c; }
 `
 
 const DICE_STYLE = `
@@ -427,13 +370,6 @@ const DICE_STYLE = `
     padding-bottom: 0.5rem;
     width: 100%; text-align: center;
   }
-  .play-dice-close {
-    position: absolute; top: 1rem; right: 1rem;
-    background: none; border: none; cursor: pointer;
-    color: #887272; font-size: 20px; line-height: 1;
-    transition: color 0.15s;
-  }
-  .play-dice-close:hover { color: #5c0c1c; }
   .play-dice-scene {
     perspective: 1000px;
     width: 96px; height: 96px;
@@ -491,17 +427,6 @@ const DICE_STYLE = `
   }
   .play-dice-bouncing { animation: play-dice-bounce 1.5s cubic-bezier(0.25,1,0.5,1) forwards; }
   .play-shadow-rolling { animation: play-shadow-pulse 1.5s cubic-bezier(0.25,1,0.5,1) forwards; }
-  .play-dice-btn {
-    background: #7a2430; color: #fff;
-    font-family: 'Noto Serif', serif;
-    font-size: 13px; font-weight: 700;
-    letter-spacing: 0.1em; text-transform: uppercase;
-    padding: 0.75rem 2.5rem;
-    border: none; border-radius: 0; cursor: pointer;
-    transition: transform 0.15s, box-shadow 0.15s;
-  }
-  .play-dice-btn:hover:not(:disabled) { transform: translateY(2px); box-shadow: 0 0 0 2px #141b2c; }
-  .play-dice-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .play-dice-result {
     margin-top: 1.5rem; height: 2rem;
     display: flex; align-items: center; justify-content: center;
@@ -512,338 +437,181 @@ const DICE_STYLE = `
   .play-dice-result.hidden-result { opacity: 0; }
   .play-dice-result-num { font-size: 32px; font-weight: 700; color: #7a2430; line-height: 1; }
   .play-dice-result-text { font-size: 18px; font-weight: 600; color: #141b2c; }
-  .play-dice-confirm {
-    margin-top: 1rem;
-    background: transparent; color: #141b2c;
-    font-family: 'Noto Serif', serif;
-    font-size: 13px; font-weight: 700;
-    letter-spacing: 0.1em; text-transform: uppercase;
-    padding: 0.5rem 2rem;
-    border: 1px solid #887272; border-radius: 0; cursor: pointer;
-    transition: background 0.15s;
-  }
-  .play-dice-confirm:hover { background: #f1e7cf; }
 `
 
 function formatTime(sec) {
-  const m = String(Math.floor(sec / 60)).padStart(2, '0')
-  const s = String(sec % 60).padStart(2, '0')
-  return `${m}:${s}`
+  const s = Math.max(0, sec)
+  const m = String(Math.floor(s / 60)).padStart(2, '0')
+  const r = String(s % 60).padStart(2, '0')
+  return `${m}:${r}`
 }
 
-function broadcastDiceEvent(data) {
+function readSession() {
   try {
-    const channel = new BroadcastChannel('vnr_dice_sync');
-    channel.postMessage(data);
-    channel.close();
-  } catch (e) {}
-  try {
-    localStorage.setItem('vnr_dice_event', JSON.stringify({ ...data, _ts: Date.now() }));
-  } catch (e) {}
-}
-
-function broadcastPlayAnswer(data) {
-  const payload = { ...data, _ts: Date.now() };
-  try {
-    const channel = new BroadcastChannel('vnr_game_sync');
-    channel.postMessage(payload);
-    channel.close();
-  } catch (e) {}
-  try {
-    localStorage.setItem('vnr_play_answer', JSON.stringify(payload));
-  } catch (e) {}
-}
-
-function broadcastMemeDrop(data) {
-  const payload = { ...data, _ts: Date.now() };
-  try {
-    const channel = new BroadcastChannel('vnr_meme_sync');
-    channel.postMessage(payload);
-    channel.close();
-  } catch (e) {}
-  try {
-    localStorage.setItem('vnr_meme_event', JSON.stringify(payload));
-  } catch (e) {}
+    const raw = localStorage.getItem(SESSION_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed?.gameId || !parsed?.teamKey) return null
+    return parsed
+  } catch {
+    return null
+  }
 }
 
 export default function Play() {
   const navigate = useNavigate()
+  const session = readSession()
 
-  // ── Teams state (synced from Host broadcast) ──
-  const [teams, setTeams] = useState(() => {
-    try {
-      const saved = localStorage.getItem('vnr_team_order')
-      if (saved) return JSON.parse(saved)
-    } catch (e) {}
-    return ALL_TEAMS
-  })
+  const [game, setGame] = useState(null)
+  const [teams, setTeams] = useState([])
+  const [state, setState] = useState(null)
+  const [loading, setLoading] = useState(() => isSupabaseConfigured)
+  const [error, setError] = useState(() => (isSupabaseConfigured ? null : 'Supabase chưa được cấu hình.'))
+  const [submittedRevision, setSubmittedRevision] = useState(null)
+  const [timeLeft, setTimeLeft] = useState(ANSWER_SECONDS)
 
-  // ── Question state (synced from Host) ──
-  const [currentQuestion, setCurrentQuestion] = useState(null)  // null = chưa có câu hỏi
-  const [questionMeta, setQuestionMeta] = useState(null)        // { num, cat }
-
-  // ── Game state ──
-  const [currentTeamIdx, setCurrentTeamIdx] = useState(0)
-  const [timeLeft, setTimeLeft] = useState(ANSWER_TIME)
-  const [selected, setSelected] = useState(null)   // null | 0-3
-  const [revealed, setRevealed] = useState(false)  // show correct/wrong
-  const [result, setResult] = useState(null)        // 'correct' | 'wrong' | 'timeout'
-  const timerRef = useRef(null)
-
-  // ── Dice state ──
-  const [showDice, setShowDice] = useState(false)
-  const [diceRolling, setDiceRolling] = useState(false)
-  const [diceValue, setDiceValue] = useState(null)
-  const [diceVisible, setDiceVisible] = useState(false)
   const cubeRef = useRef(null)
   const wrapperRef = useRef(null)
   const shadowRef = useRef(null)
 
-  // ── User's selected team (from PickTeam) ──
-  const [myTeamId, setMyTeamId] = useState(() => {
-    try {
-      return localStorage.getItem('vnr_my_team')
-    } catch (e) { return null }
-  })
-
-  const currentTeam = teams[currentTeamIdx] ?? ALL_TEAMS[0]
-  const isMyTeam = (teamId) => myTeamId && teamId === myTeamId
-
-  // ── Timer ──
   useEffect(() => {
-    if (revealed) return
-    timerRef.current = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current)
-          setResult('timeout')
-          setRevealed(true)
-          return 0
-        }
-        return prev - 1
-      })
+    if (!session) navigate('/pick-team', { replace: true })
+  }, [session, navigate])
+
+  const reload = useCallback(async () => {
+    if (!session) return
+    try {
+      const data = await loadGame(session.gameId)
+      setGame(data.game)
+      setTeams(data.teams)
+      setState(data.state)
+      setLoading(false)
+    } catch (err) {
+      setError(err.message || String(err))
+      setLoading(false)
+    }
+  }, [session])
+
+  useEffect(() => {
+    if (!session || !isSupabaseConfigured) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial async fetch on mount
+    reload()
+  }, [session, reload])
+
+  useEffect(() => {
+    if (!session) return undefined
+    return subscribeToGame(session.gameId, reload)
+  }, [session, reload])
+
+  // Countdown display derived from the shared deadline; submittedRevision is
+  // compared directly against state.revision at render time (see alreadySubmitted).
+  useEffect(() => {
+    if (!state?.deadline_at || state.phase !== 'answering') return undefined
+    const deadline = new Date(state.deadline_at).getTime()
+    const id = setInterval(() => {
+      setTimeLeft(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)))
     }, 1000)
-    return () => clearInterval(timerRef.current)
-  }, [revealed])
+    return () => clearInterval(id)
+  }, [state?.deadline_at, state?.phase])
 
-  // ── Timer color ──
-  const timerClass =
-    timeLeft > 20 ? 'timer-normal' :
-    timeLeft > 10 ? 'timer-warn' :
-    'timer-danger'
-
-  // ── Select option ──
-  const handleSelect = (idx) => {
-    if (revealed || selected !== null) return
-    if (!currentQuestion) return
-    setSelected(idx)
-    clearInterval(timerRef.current)
-    const isCorrect = idx === currentQuestion.correct
-    setResult(isCorrect ? 'correct' : 'wrong')
-    setRevealed(true)
-    // Gửi đáp án về Host
-    broadcastPlayAnswer({
-      type: 'PLAY_ANSWER',
-      optionIdx: idx,
-      teamIdx: currentTeamIdx,
-      isCorrect,
-    })
-    if (isCorrect) {
-      setTimeout(() => openDice(), 400)
-    }
-  }
-
-  // ── Dice handlers ──
-  const openDice = () => {
-    setDiceValue(null)
-    setDiceVisible(false)
-    setDiceRolling(false)
-    if (cubeRef.current) cubeRef.current.style.transform = 'rotateX(0deg) rotateY(0deg)'
-    setShowDice(true)
-  }
-
-  // Listen for sync events (in case roll is triggered externally)
   useEffect(() => {
-    let channel;
-    const handleSync = (data) => {
-      if (data?.type === 'DICE_ROLL_START') {
-        const { score, rx, ry } = data;
-        setDiceValue(null);
-        setDiceVisible(false);
-        setDiceRolling(true);
-        setShowDice(true);
-        if (cubeRef.current) cubeRef.current.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
-        if (wrapperRef.current) wrapperRef.current.classList.add('play-dice-bouncing');
-        if (shadowRef.current) shadowRef.current.classList.add('play-shadow-rolling');
-        setTimeout(() => {
-          setDiceValue(score);
-          setDiceVisible(true);
-          setDiceRolling(false);
-          if (wrapperRef.current) wrapperRef.current.classList.remove('play-dice-bouncing');
-          if (shadowRef.current) shadowRef.current.classList.remove('play-shadow-rolling');
-        }, 1500);
-
-      } else if (data?.type === 'DICE_CONFIRM') {
-        setShowDice(false);
-
-      } else if (data?.type === 'QUESTION_OPEN') {
-        // Nhận câu hỏi từ Host
-        const { card, currentTeamIdx: teamIdx, teams: newTeams } = data;
-        setCurrentQuestion(card);
-        setQuestionMeta({ num: card.num, cat: card.cat });
-        if (newTeams) setTeams(newTeams);
-        setCurrentTeamIdx(teamIdx);
-        setSelected(null);
-        setRevealed(false);
-        setResult(null);
-        setTimeLeft(ANSWER_TIME);
-
-      } else if (data?.type === 'ANSWER_RESULT') {
-        // Host xử lý xong, cập nhật trạng thái Play
-        if (data.nextTeamIdx !== undefined) {
-          // Sai, chuyển lượt
-          setCurrentTeamIdx(data.nextTeamIdx);
-          setSelected(null);
-          setRevealed(false);
-          setResult(null);
-          setTimeLeft(ANSWER_TIME);
-        }
-        if (data.noWinner) {
-          // Không ai đúng
-          setResult('timeout');
-        }
-
-      } else if (data?.type === 'GAME_RESET') {
-        if (Array.isArray(data.teams)) {
-          setTeams(data.teams);
-          setCurrentTeamIdx(0);
-          setCurrentQuestion(null);
-          setQuestionMeta(null);
-          setSelected(null);
-          setRevealed(false);
-          setResult(null);
-          setTimeLeft(ANSWER_TIME);
-        }
+    if (!state) return
+    if (state.dice_rolling) {
+      const [rx, ry] = rotationForDiceValue(state.dice_value)
+      if (cubeRef.current) {
+        cubeRef.current.style.transition = 'none'
+        cubeRef.current.style.transform = 'rotateX(0deg) rotateY(0deg)'
+        void cubeRef.current.offsetHeight
+        cubeRef.current.style.transition = ''
       }
-    };
-
-    try {
-      channel = new BroadcastChannel('vnr_dice_sync');
-      channel.onmessage = (e) => {
-        if (e.data) handleSync(e.data);
-      };
-    } catch (e) {}
-
-    const handleStorage = (e) => {
-      if (e.key === 'vnr_dice_event' && e.newValue) {
-        try {
-          const data = JSON.parse(e.newValue);
-          handleSync(data);
-        } catch (err) {}
-      }
-      if (e.key === 'vnr_game_event' && e.newValue) {
-        try {
-          const data = JSON.parse(e.newValue);
-          handleSync(data);
-        } catch (err) {}
-      }
-    };
-    // Lắng nghe cả 2 channel (dice + game)
-    let gameChannel;
-    try {
-      gameChannel = new BroadcastChannel('vnr_game_sync');
-      gameChannel.onmessage = (e) => { if (e.data) handleSync(e.data); };
-    } catch (e) {}
-    window.addEventListener('storage', handleStorage);
-
-    return () => {
-      if (channel) channel.close();
-      if (gameChannel) gameChannel.close();
-      window.removeEventListener('storage', handleStorage);
-    };
-  }, []);
-
-  const handleRollDice = () => {
-    if (diceRolling || diceValue !== null) return
-    setDiceRolling(true)
-    setDiceVisible(false)
-
-    const face = Math.floor(Math.random() * 6) + 1
-    const score = Math.min(face, 5)
-    let rx = 1440, ry = 1440
-    switch (face) {
-      case 1: break
-      case 6: ry += 180; break
-      case 3: ry -= 90;  break
-      case 4: ry += 90;  break
-      case 2: rx -= 90;  break
-      case 5: rx += 90;  break
-    }
-
-    // Broadcast to Host so Host modal opens and animates simultaneously
-    broadcastDiceEvent({
-      type: 'DICE_ROLL_START',
-      face,
-      score,
-      rx,
-      ry,
-      teamIdx: currentTeamIdx,
-      teamName: teams[currentTeamIdx]?.name ?? currentTeam?.name
-    })
-
-    if (wrapperRef.current) wrapperRef.current.classList.add('play-dice-bouncing')
-    if (shadowRef.current)  shadowRef.current.classList.add('play-shadow-rolling')
-    if (cubeRef.current)    cubeRef.current.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`
-
-    setTimeout(() => {
-      setDiceValue(score)
-      setDiceVisible(true)
-      setDiceRolling(false)
+      if (wrapperRef.current) wrapperRef.current.classList.add('play-dice-bouncing')
+      if (shadowRef.current) shadowRef.current.classList.add('play-shadow-rolling')
+      requestAnimationFrame(() => {
+        if (cubeRef.current) cubeRef.current.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`
+      })
+    } else {
       if (wrapperRef.current) wrapperRef.current.classList.remove('play-dice-bouncing')
-      if (shadowRef.current)  shadowRef.current.classList.remove('play-shadow-rolling')
-    }, 1500)
+      if (shadowRef.current) shadowRef.current.classList.remove('play-shadow-rolling')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.dice_rolling, state?.dice_value])
+
+  if (!session) return null
+
+  if (loading) {
+    return (
+      <div className="play-page" style={{ alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ padding: '3rem', fontFamily: "'Noto Serif', serif" }}>Đang kết nối…</div>
+      </div>
+    )
   }
 
-  const handleDiceConfirm = () => {
-    setShowDice(false)
-    broadcastDiceEvent({
-      type: 'DICE_CONFIRM',
-      teamIdx: currentTeamIdx,
-      score: diceValue
+  if (error || !state || !teams.length) {
+    return (
+      <div className="play-page" style={{ alignItems: 'center', justifyContent: 'center' }}>
+        <style>{PLAY_STYLE}</style>
+        <div style={{ padding: '3rem', fontFamily: "'Noto Serif', serif", color: '#ba1a1a' }}>
+          {error || 'Đang chờ kết nối lại…'}
+        </div>
+      </div>
+    )
+  }
+
+  const myTeam = teams.find((t) => t.team_key === session.teamKey)
+  const activeCard = state.active_card_num ? getCardByNumber(state.card_deck, state.active_card_num) : null
+  const answeringIdx = state.answering_team_idx ?? 0
+  const answeringTeam = teams[answeringIdx]
+  const isMyTurn =
+    game?.status === 'playing' &&
+    state.phase === 'answering' &&
+    answeringTeam?.team_key === session.teamKey &&
+    !state.answer_submission_team_key
+
+  const alreadySubmitted = submittedRevision !== null && submittedRevision === state.revision
+
+  const handleSelect = async (idx) => {
+    if (!isMyTurn || alreadySubmitted || !activeCard) return
+    setSubmittedRevision(state.revision)
+    try {
+      await submitAnswerEvent({
+        gameId: session.gameId,
+        teamKey: session.teamKey,
+        cardNum: state.active_card_num,
+        revision: state.revision,
+        optionIdx: idx,
+      })
+    } catch (err) {
+      setError(err.message || String(err))
+    }
+  }
+
+  const handleMemeDrop = (memeId) => {
+    sendMemeDrop(session.gameId, {
+      teamId: myTeam?.team_key,
+      teamName: myTeam?.name,
+      teamColor: myTeam?.color,
+      memeId,
+      x: 10 + Math.random() * 70,
+      y: 25 + Math.random() * 40,
     })
   }
 
-  // ── Option style ──
   const optClass = (idx) => {
-    if (!revealed) return selected === idx ? 'selected' : ''
-    if (!currentQuestion) return ''
-    if (idx === currentQuestion.correct) return 'correct'
-    if (idx === selected && idx !== currentQuestion.correct) return 'wrong'
+    const st = state.option_states?.[idx]
+    if (st === 'correct') return 'correct'
+    if (st === 'wrong') return 'wrong'
     return ''
   }
 
-  // ── Next team ──
-  const handleNext = () => {
-    const nextIdx = (currentTeamIdx + 1) % teams.length
-    setCurrentTeamIdx(nextIdx)
-    setTimeLeft(ANSWER_TIME)
-    setSelected(null)
-    setRevealed(false)
-    setResult(null)
-  }
+  const timerClass = timeLeft > 10 ? 'timer-normal' : timeLeft > 5 ? 'timer-warn' : 'timer-danger'
 
-  // ── Meme drop handler ──
-  const handleMemeDrop = useCallback((memeId) => {
-    broadcastMemeDrop({
-      type: 'MEME_DROP',
-      teamId: currentTeam.id,
-      teamName: currentTeam.name,
-      teamColor: currentTeam.color,
-      memeId,
-      x: 10 + Math.random() * 70, // random horizontal (10% - 80%)
-      y: 25 + Math.random() * 40, // random vertical (25% - 65%) – giữa màn hình
-    })
-  }, [currentTeam])
+  let resultBanner = null
+  if (state.phase === 'explaining' || state.phase === 'resolving_effect') {
+    const winner = teams.find((t) => t.team_key === state.answer_submission_team_key)
+    if (winner) {
+      resultBanner = { type: 'correct', text: `✓ ${winner.name} trả lời đúng!` }
+    }
+  }
 
   return (
     <>
@@ -851,113 +619,98 @@ export default function Play() {
         href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400&family=Noto+Sans:wght@400;500;700&display=swap"
         rel="stylesheet"
       />
-      <link
-        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
-        rel="stylesheet"
-      />
       <style>{PLAY_STYLE}</style>
 
       <div className="play-page">
-
-        {/* ── Top Header ── */}
         <header className="play-header">
           <div className="play-header-inner">
             <div className="play-title">HÀNH TRÌNH ĐỔI MỚI</div>
-            <div className="play-nav-actions">
-              <button className="play-nav-btn" title="Lịch sử">
-                <span className="material-symbols-outlined">history_edu</span>
-              </button>
-              <button className="play-nav-btn" title="Cơ quan">
-                <span className="material-symbols-outlined">account_balance</span>
-              </button>
-            </div>
           </div>
         </header>
 
         <div className="play-body">
-
-          {/* ── Sidebar ── */}
           <aside className="play-sidebar">
             <div className="sidebar-title">Lượt Thi Đấu</div>
             <div className="sidebar-list">
               <div className="sidebar-timeline-line" />
               {teams.map((team, i) => (
-                <div
-                  key={team.id}
-                  className={`sidebar-item${i === currentTeamIdx ? ' active' : ''}`}
-                >
+                <div key={team.team_key} className={`sidebar-item${i === answeringIdx ? ' active' : ''}`}>
                   <div className="sidebar-dot">
-                    <div className="dot-inner" style={i === currentTeamIdx ? {} : { background: '#887272' }} />
+                    <div className="dot-inner" style={i === answeringIdx ? {} : { background: '#887272' }} />
                   </div>
                   <div className="sidebar-card">
-                    <div className="sidebar-team-name" style={i === currentTeamIdx ? { color: team.color } : {}}>
-                      {team.name}{isMyTeam(team.id) && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: '#ba1a1a', letterSpacing: '0.05em', textTransform: 'uppercase', border: '1px dashed #ba1a1a', padding: '1px 4px', transform: 'rotate(-3deg)', display: 'inline-block' }}>bạn</span>}
+                    <div className="sidebar-team-name" style={i === answeringIdx ? { color: team.color } : {}}>
+                      {team.name}
+                      {team.team_key === session.teamKey && (
+                        <span
+                          style={{
+                            marginLeft: 6,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: '#ba1a1a',
+                            letterSpacing: '0.05em',
+                            textTransform: 'uppercase',
+                            border: '1px dashed #ba1a1a',
+                            padding: '1px 4px',
+                            transform: 'rotate(-3deg)',
+                            display: 'inline-block',
+                          }}
+                        >
+                          bạn
+                        </span>
+                      )}
                     </div>
-                    <div className={`sidebar-status${i === currentTeamIdx ? ' live' : ' waiting'}`}>
-                      {i === currentTeamIdx ? (
+                    <div className={`sidebar-status${i === answeringIdx ? ' live' : ' waiting'}`}>
+                      {i === answeringIdx ? (
                         <>
                           <span className="dot-pulse" />
-                          {revealed ? 'Đã trả lời' : 'Đang trả lời...'}
+                          {state.phase === 'answering' ? 'Đang trả lời...' : 'Vừa trả lời'}
                         </>
-                      ) : i < currentTeamIdx ? (
-                        '✓ Đã hoàn thành'
                       ) : (
                         'Chờ đến lượt'
                       )}
                     </div>
-                    {i === currentTeamIdx && (
-                      <div className="sidebar-mini-stamp">XÁC NHẬN</div>
-                    )}
                   </div>
                 </div>
               ))}
             </div>
           </aside>
 
-          {/* ── Main ── */}
           <main className="play-main">
             <div className="play-doc">
-
-              {/* Team info bar */}
               <div className="team-info-bar">
                 <div>
-                  <div className="team-info-label">NHÓM ĐANG THI ĐẤU</div>
-                  <div className="team-info-name" style={{ color: currentTeam.color }}>
-                    {currentTeam.name}{isMyTeam(currentTeam.id) && <span style={{ marginLeft: 8, fontSize: 13, fontWeight: 700, color: '#ba1a1a', letterSpacing: '0.05em', textTransform: 'uppercase', border: '1px dashed #ba1a1a', padding: '2px 6px', transform: 'rotate(-3deg)', display: 'inline-block' }}>bạn</span>}
+                  <div className="team-info-label">ĐỘI CỦA BẠN</div>
+                  <div className="team-info-name" style={{ color: myTeam?.color }}>
+                    {myTeam?.name} · {myTeam?.score ?? 0} điểm
                   </div>
                 </div>
                 <div>
                   <div className="team-info-time-label">THỜI GIAN CÒN LẠI</div>
-                  <div className={`team-info-timer ${timerClass}`}>
-                    {formatTime(timeLeft)}
-                  </div>
+                  <div className={`team-info-timer ${timerClass}`}>{formatTime(timeLeft)}</div>
                 </div>
               </div>
 
-              {/* Question */}
-              {!currentQuestion ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '3rem 1rem',
-                  color: '#887272',
-                  fontFamily: "'Noto Serif', serif",
-                }}>
+              {!activeCard ? (
+                <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#887272', fontFamily: "'Noto Serif', serif" }}>
                   <div style={{ fontSize: 48, marginBottom: '1rem' }}>⏳</div>
                   <div style={{ fontSize: 18, fontWeight: 600, marginBottom: '0.5rem' }}>Chờ câu hỏi từ Ban Tổ chức</div>
                   <div style={{ fontSize: 14 }}>Host sẽ mở lá bài trên màn hình chính</div>
                 </div>
               ) : (
                 <>
-                  <div className="q-eyebrow">CÂU HỎI TRUY VẤN {questionMeta ? `· Lá số ${questionMeta.num}` : ''}</div>
-                  <div className="q-text">"{currentQuestion.text}"</div>
+                  <div className="q-eyebrow">CÂU HỎI TRUY VẤN · Lá số {activeCard.num}</div>
+                  <div className="q-text">"{activeCard.q}"</div>
 
-                  <div className="opt-eyebrow">CÁC PHƯƠNG ÁN TRẢ LỜI</div>
+                  <div className="opt-eyebrow">
+                    {isMyTurn ? 'ĐẾN LƯỢT ĐỘI BẠN — CHỌN 1 PHƯƠNG ÁN' : `LƯỢT TRẢ LỜI: ${state.attempt_label || answeringTeam?.name || ''}`}
+                  </div>
                   <div className="options-grid">
-                    {currentQuestion.options.map((opt, i) => (
+                    {activeCard.options.map((opt, i) => (
                       <button
                         key={i}
                         className={`opt-btn ${optClass(i)}`}
-                        disabled={revealed}
+                        disabled={!isMyTurn || alreadySubmitted}
                         onClick={() => handleSelect(i)}
                       >
                         <span className="opt-label">{OPTION_LABELS[i]}</span>
@@ -968,96 +721,42 @@ export default function Play() {
                 </>
               )}
 
-              {/* Result banner */}
-              {result && (
-                <div className={`result-banner ${result}`}>
-                  {result === 'correct' && (
-                    <span
-                      style={{ cursor: 'pointer', textDecoration: 'underline' }}
-                      onClick={openDice}
-                    >
-                      ✓ Trả lời đúng! Nhấn để tung xúc xắc 🎲
-                    </span>
-                  )}
-                  {result === 'wrong'   && '✗ Trả lời sai. Chờ đội tiếp theo.'}
-                  {result === 'timeout' && '⏰ Hết thời gian! Không tính điểm lượt này.'}
-                </div>
+              {resultBanner && <div className={`result-banner ${resultBanner.type}`}>{resultBanner.text}</div>}
+              {activeCard && state.show_explain && (
+                <div className="result-banner pending">{activeCard.explain}</div>
               )}
 
               <hr className="play-divider" />
 
-              {/* Observers */}
-              <div className="obs-eyebrow">
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>visibility</span>
-                CÁC ĐƠN VỊ ĐANG THEO DÕI
-              </div>
+              <div className="obs-eyebrow">CÁC ĐƠN VỊ ĐANG THEO DÕI</div>
               <div className="obs-grid">
-                {teams.filter((_, i) => i !== currentTeamIdx).slice(0, 4).map(team => (
-                  <div key={team.id} className="obs-item">
-                    <span className="obs-dot" style={{ background: team.color }} />
-                    <span>{team.name}{isMyTeam(team.id) && <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 700, color: '#ba1a1a', border: '1px dashed #ba1a1a', padding: '0 3px', display: 'inline-block' }}>bạn</span>}</span>
-                  </div>
-                ))}
+                {teams
+                  .filter((t) => t.team_key !== answeringTeam?.team_key)
+                  .slice(0, 4)
+                  .map((team) => (
+                    <div key={team.team_key} className="obs-item">
+                      <span className="obs-dot" style={{ background: team.color }} />
+                      <span>{team.name}</span>
+                    </div>
+                  ))}
               </div>
 
               {/* Meme Panel */}
-              <MemePanel
-                onDrop={handleMemeDrop}
-                disabled={diceRolling}
-                teamColor={currentTeam.color}
-              />
-
-              {/* Next button (visible after answered) */}
-              {revealed && (
-                <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    onClick={handleNext}
-                    style={{
-                      background: '#7a2430', color: '#fff',
-                      fontFamily: "'Noto Serif', serif",
-                      fontSize: 13, fontWeight: 700,
-                      letterSpacing: '0.1em', textTransform: 'uppercase',
-                      padding: '0.75rem 2rem',
-                      border: 'none', cursor: 'pointer',
-                      transition: 'transform 0.15s, box-shadow 0.15s',
-                    }}
-                    onMouseOver={e => { e.currentTarget.style.transform = 'translateY(2px)'; e.currentTarget.style.boxShadow = '0 0 0 2px #141b2c' }}
-                    onMouseOut={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}
-                  >
-                    Đội tiếp theo →
-                  </button>
-                </div>
-              )}
+              <MemePanel onDrop={handleMemeDrop} disabled={false} teamColor={myTeam?.color} />
             </div>
           </main>
         </div>
 
-        {/* ── Footer ── */}
         <footer className="play-footer">
           <div className="play-footer-inner">
-            <span className="play-footer-copy">© 1986-2024 BAN TUYÊN GIÁO TRUNG ƯƠNG</span>
-            <ul className="play-footer-links">
-              <li><a href="#">Điều lệ</a></li>
-              <li><a href="#">Hướng dẫn</a></li>
-              <li><a href="#">Báo cáo lỗi</a></li>
-            </ul>
+            <span className="play-footer-copy">© 1986-2026 BAN TUYÊN GIÁO TRUNG ƯƠNG</span>
           </div>
         </footer>
 
-        {/* ── Dice Modal ── */}
         <style>{DICE_STYLE}</style>
-        <div className={`play-dice-overlay${showDice ? '' : ' hidden'}`}>
+        <div className={`play-dice-overlay${state.show_dice ? '' : ' hidden'}`}>
           <div className="play-dice-modal">
-            <button
-              className="play-dice-close"
-              onClick={() => !diceRolling && setShowDice(false)}
-            >✕</button>
-
-            <div className="play-dice-title">
-              Gieo Xúc Xắc — {teams[currentTeamIdx]?.name}
-            </div>
-
-            {/* 3-D cube */}
+            <div className="play-dice-title">Gieo Xúc Xắc — {teams[state.effect_team_idx]?.name ?? ''}</div>
             <div className="play-dice-scene">
               <div className="play-dice-wrapper" ref={wrapperRef}>
                 <div className="play-dice-cube" ref={cubeRef}>
@@ -1071,29 +770,13 @@ export default function Play() {
               </div>
               <div className="play-dice-shadow" ref={shadowRef} />
             </div>
-
-            <button
-              className="play-dice-btn"
-              onClick={handleRollDice}
-              disabled={diceRolling || diceValue !== null}
-            >
-              {diceRolling ? 'Đang gieo...' : diceValue !== null ? 'Đã gieo' : 'Gieo Điểm'}
-            </button>
-
-            <div className={`play-dice-result${diceVisible ? '' : ' hidden-result'}`}>
-              <span className="play-dice-result-text">Tiến lên</span>
-              <span className="play-dice-result-num">{diceValue ?? ''}</span>
+            <div className={`play-dice-result${state.dice_result_visible ? '' : ' hidden-result'}`}>
+              <span className="play-dice-result-text">{state.effect_type === 'dice_subtract' ? 'Trừ' : 'Tiến lên'}</span>
+              <span className="play-dice-result-num">{state.dice_value ?? ''}</span>
               <span className="play-dice-result-text">bước</span>
             </div>
-
-            {diceVisible && (
-              <button className="play-dice-confirm" onClick={handleDiceConfirm}>
-                Xác nhận +{diceValue} điểm
-              </button>
-            )}
           </div>
         </div>
-
       </div>
     </>
   )
