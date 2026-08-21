@@ -48,15 +48,18 @@ export function resetScores(teams) {
   return teams.map((team) => ({ ...team, score: 0 }));
 }
 
-export function stealUpToFive(teams, fromTeamIndex, toTeamIndex) {
-  const fromTeam = teams[fromTeamIndex];
-  const toTeam = teams[toTeamIndex];
-  if (!fromTeam || !toTeam || fromTeamIndex === toTeamIndex) return cloneTeams(teams);
+// thiefIndex is the team that drew the effect and gains points; victimIndex
+// is the Host-chosen team that loses them, capped by the victim's own score
+// (GAMEPLAY.md: "Nếu đội bị cướp có ít hơn 5 điểm → lấy hết").
+export function stealUpToFive(teams, thiefIndex, victimIndex) {
+  const thief = teams[thiefIndex];
+  const victim = teams[victimIndex];
+  if (!thief || !victim || thiefIndex === victimIndex) return cloneTeams(teams);
 
-  const amount = Math.min(5, Math.max(0, fromTeam.score));
+  const amount = Math.min(5, Math.max(0, victim.score));
   return teams.map((team, index) => {
-    if (index === fromTeamIndex) return { ...team, score: team.score - amount };
-    if (index === toTeamIndex) return { ...team, score: team.score + amount };
+    if (index === thiefIndex) return { ...team, score: team.score + amount };
+    if (index === victimIndex) return { ...team, score: team.score - amount };
     return { ...team };
   });
 }

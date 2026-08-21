@@ -215,6 +215,40 @@ function computeAnswerPatch(state, teams, optionIdx) {
       answering_team_idx: nextTeamIdx,
       answering_team_key: nextTeam?.team_key ?? null,
       attempt_label: nextTeam?.name ?? "",
+      // Give the next team a fresh 15s window — without this the shared
+      // deadline_at (already close to expiring) leaks over from the
+      // previous team, and the timeout enforcement below auto-skips them.
+      deadline_at: computeDeadlineAt(),
+    },
+  };
+}
+
+// Timeout → next attempt, same rotation as a wrong answer, but no option was
+// actually picked so nothing in option_states is marked "wrong"; it only
+// advances answering_team_idx (or abandons the card via closeCard when the
+// attempt order is exhausted, exactly like the 3-wrong-answers abandon path).
+function computeTimeoutAdvance(state, teams) {
+  const attemptIdx = state.attempt_idx + 1;
+
+  if (attemptIdx >= state.attempt_order.length) {
+    // Unlike computeAnswerPatch's abandon branch (reachable via wrongCount
+    // too, while attemptIdx may still be in range), this branch is only ever
+    // reached because the attempt order is exhausted — so the next selector
+    // is always the first team in that order.
+    return { kind: "abandon", nextSelectorIdx: state.attempt_order[0] };
+  }
+
+  const nextTeamIdx = state.attempt_order[attemptIdx];
+  const nextTeam = teams[nextTeamIdx];
+  return {
+    kind: "next",
+    patch: {
+      ...state,
+      attempt_idx: attemptIdx,
+      answering_team_idx: nextTeamIdx,
+      answering_team_key: nextTeam?.team_key ?? null,
+      attempt_label: nextTeam?.name ?? "",
+      deadline_at: computeDeadlineAt(),
     },
   };
 }
@@ -344,6 +378,35 @@ export default function Host() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events]);
+
+  // Enforce the answer deadline: if it passes with no answer submitted,
+  // advance the turn the same way a wrong answer would (see
+  // computeTimeoutAdvance above for why option_states is left untouched).
+  useEffect(() => {
+    if (!state || state.phase !== "answering" || !state.deadline_at) return undefined;
+    const targetDeadline = state.deadline_at;
+    const ms = Math.max(0, new Date(targetDeadline).getTime() - Date.now());
+    const timer = setTimeout(async () => {
+      const s = stateRef.current;
+      const tms = teamsRef.current;
+      if (!s || !tms.length) return;
+      if (s.phase !== "answering") return;
+      if (s.deadline_at !== targetDeadline) return;
+      const result = computeTimeoutAdvance(s, tms);
+      try {
+        if (result.kind === "abandon") {
+          const next = closeCard(s, tms, result.nextSelectorIdx);
+          await saveGameState(gameId, s.revision, next);
+        } else {
+          await saveGameState(gameId, s.revision, { ...result.patch, revision: s.revision + 1 });
+        }
+      } catch (err) {
+        setError(err.message || String(err));
+      }
+    }, ms);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.deadline_at, state?.phase, gameId]);
 
   // Dice cube animation reacts to shared state.
   useEffect(() => {
@@ -531,7 +594,7 @@ export default function Host() {
     const tms = teamsRef.current;
     if (!s) return;
     const fromIdx = s.effect_team_idx;
-    const amount = Math.min(5, Math.max(0, tms[fromIdx]?.score ?? 0));
+    const amount = Math.min(5, Math.max(0, tms[targetIdx]?.score ?? 0));
     const nextTeams = stealUpToFive(tms, fromIdx, targetIdx);
     try {
       await saveTeams(gameId, nextTeams);
