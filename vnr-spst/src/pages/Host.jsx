@@ -594,7 +594,7 @@ export default function Host() {
     const tms = teamsRef.current;
     if (!s) return;
     const fromIdx = s.effect_team_idx;
-    const amount = Math.min(5, Math.max(0, tms[fromIdx]?.score ?? 0));
+    const amount = Math.min(5, Math.max(0, tms[targetIdx]?.score ?? 0));
     const nextTeams = stealUpToFive(tms, fromIdx, targetIdx);
     try {
       await saveTeams(gameId, nextTeams);
