@@ -215,6 +215,10 @@ function computeAnswerPatch(state, teams, optionIdx) {
       answering_team_idx: nextTeamIdx,
       answering_team_key: nextTeam?.team_key ?? null,
       attempt_label: nextTeam?.name ?? "",
+      // Give the next team a fresh 15s window — without this the shared
+      // deadline_at (already close to expiring) leaks over from the
+      // previous team, and the timeout enforcement below auto-skips them.
+      deadline_at: computeDeadlineAt(),
     },
   };
 }
@@ -227,9 +231,11 @@ function computeTimeoutAdvance(state, teams) {
   const attemptIdx = state.attempt_idx + 1;
 
   if (attemptIdx >= state.attempt_order.length) {
-    const nextSelectorIdx =
-      attemptIdx < state.attempt_order.length ? state.attempt_order[attemptIdx] : state.attempt_order[0];
-    return { kind: "abandon", nextSelectorIdx };
+    // Unlike computeAnswerPatch's abandon branch (reachable via wrongCount
+    // too, while attemptIdx may still be in range), this branch is only ever
+    // reached because the attempt order is exhausted — so the next selector
+    // is always the first team in that order.
+    return { kind: "abandon", nextSelectorIdx: state.attempt_order[0] };
   }
 
   const nextTeamIdx = state.attempt_order[attemptIdx];
