@@ -468,6 +468,7 @@ export default function Play() {
   const [loading, setLoading] = useState(() => isSupabaseConfigured)
   const [error, setError] = useState(() => (isSupabaseConfigured ? null : 'Supabase chưa được cấu hình.'))
   const [submittedRevision, setSubmittedRevision] = useState(null)
+  const [submitError, setSubmitError] = useState(null)
   const [timeLeft, setTimeLeft] = useState(ANSWER_SECONDS)
 
   const cubeRef = useRef(null)
@@ -550,8 +551,21 @@ export default function Play() {
     return (
       <div className="play-page" style={{ alignItems: 'center', justifyContent: 'center' }}>
         <style>{PLAY_STYLE}</style>
-        <div style={{ padding: '3rem', fontFamily: "'Noto Serif', serif", color: '#ba1a1a' }}>
-          {error || 'Đang chờ kết nối lại…'}
+        <div style={{ padding: '3rem', textAlign: 'center', fontFamily: "'Noto Serif', serif", color: '#ba1a1a' }}>
+          <div>{error || 'Đang chờ kết nối lại…'}</div>
+          {error && (
+            <button
+              type="button"
+              onClick={() => {
+                setError(null)
+                setLoading(true)
+                reload()
+              }}
+              style={{ marginTop: 16 }}
+            >
+              Thử lại
+            </button>
+          )}
         </div>
       </div>
     )
@@ -571,6 +585,7 @@ export default function Play() {
 
   const handleSelect = async (idx) => {
     if (!isMyTurn || alreadySubmitted || !activeCard) return
+    setSubmitError(null)
     setSubmittedRevision(state.revision)
     try {
       await submitAnswerEvent({
@@ -581,9 +596,16 @@ export default function Play() {
         optionIdx: idx,
       })
     } catch (err) {
-      setError(err.message || String(err))
+      // Network hiccup on submit — let them retry the click instead of
+      // locking the whole screen behind the fatal-error view. Scope the
+      // error to this revision so it doesn't linger into a future turn.
+      setSubmittedRevision(null)
+      setSubmitError({ atRevision: state.revision, message: err.message || String(err) })
     }
   }
+
+  const submitErrorMessage =
+    submitError && submitError.atRevision === state.revision ? submitError.message : null
 
   const handleMemeDrop = (memeId) => {
     sendMemeDrop(session.gameId, {
@@ -705,6 +727,21 @@ export default function Play() {
                   <div className="opt-eyebrow">
                     {isMyTurn ? 'ĐẾN LƯỢT ĐỘI BẠN — CHỌN 1 PHƯƠNG ÁN' : `LƯỢT TRẢ LỜI: ${state.attempt_label || answeringTeam?.name || ''}`}
                   </div>
+                  {isMyTurn && !alreadySubmitted && (
+                    <div style={{ fontSize: 12, color: '#887272', marginBottom: '0.5rem' }}>
+                      Chỉ đáp án đầu tiên của đội được tính — nếu đồng đội đã bấm, màn hình bạn sẽ tự chuyển.
+                    </div>
+                  )}
+                  {alreadySubmitted && (
+                    <div style={{ fontSize: 13, color: '#7b5800', marginBottom: '0.5rem', fontWeight: 600 }}>
+                      Đã gửi câu trả lời (hoặc đồng đội đã gửi trước) — đang chờ Host xác nhận…
+                    </div>
+                  )}
+                  {submitErrorMessage && (
+                    <div style={{ fontSize: 13, color: '#ba1a1a', marginBottom: '0.5rem' }}>
+                      Gửi câu trả lời thất bại ({submitErrorMessage}) — bấm lại đáp án để thử lại.
+                    </div>
+                  )}
                   <div className="options-grid">
                     {activeCard.options.map((opt, i) => (
                       <button
