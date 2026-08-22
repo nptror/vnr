@@ -41,6 +41,7 @@ export async function findGameByPin(pin) {
     .from("games")
     .select("*")
     .eq("pin", pin)
+    .neq("status", "finished")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -106,7 +107,15 @@ export async function saveGameState(gameId, expectedRevision, nextState) {
     .select()
     .maybeSingle();
   throwOnError(error);
-  if (!data) throw new Error("Game state changed before it could be saved.");
+  if (!data) {
+    // Another writer (the answer-deadline timeout, or another device's
+    // event) already advanced `revision` first. This is routine under
+    // concurrent play, not a fatal error — callers should reload state and
+    // move on rather than surface it to the user.
+    const conflict = new Error("Game state changed before it could be saved.");
+    conflict.code = "STALE_REVISION";
+    throw conflict;
+  }
   return data;
 }
 

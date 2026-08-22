@@ -28,11 +28,23 @@ import {
   subscribeToMemeDrops,
 } from "../game/gameRepository";
 import { isSupabaseConfigured } from "../lib/supabase";
-import MemeDrop, { useMemeDrop } from "../components/MemeDrop.jsx";
+import MemeDrop from "../components/MemeDrop.jsx";
+import { useMemeDrop } from "../hooks/useMemeDrop.js";
 import "./Host.css";
 
 const HOST_GAME_ID_KEY = "vnr_host_game_id";
 const ANSWER_SECONDS = 15;
+
+// Excludes visually-ambiguous characters (0/O, 1/I) so a code read off the
+// Host screen and typed on a phone doesn't get mistyped.
+const TEAM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function randomTeamCode() {
+  let code = "";
+  for (let i = 0; i < 4; i++) {
+    code += TEAM_CODE_CHARS[Math.floor(Math.random() * TEAM_CODE_CHARS.length)];
+  }
+  return code;
+}
 const MAX_WRONG_BEFORE_ABANDON = 3;
 
 function computeDeadlineAt() {
@@ -293,6 +305,21 @@ export default function Host() {
     }
   }, []);
 
+  // A STALE_REVISION error means another writer (the answer-deadline
+  // timeout, or a just-in-time player answer) already saved first — that's
+  // routine under concurrent play, not a failure. Reload the fresh state
+  // instead of locking the screen behind a fatal error banner.
+  const handleSaveConflict = useCallback(
+    (err) => {
+      if (err?.code === "STALE_REVISION") {
+        reload(gameId);
+        return;
+      }
+      setError(err.message || String(err));
+    },
+    [gameId, reload]
+  );
+
   // Bootstrap: resume or create a game.
   useEffect(() => {
     if (!isSupabaseConfigured) return undefined;
@@ -354,10 +381,10 @@ export default function Host() {
           await saveGameState(gameId, s.revision, { ...result.patch, revision: s.revision + 1 });
         }
       } catch (err) {
-        setError(err.message || String(err));
+        handleSaveConflict(err);
       }
     },
-    [gameId]
+    [gameId, handleSaveConflict]
   );
 
   // Process PLAYER_ANSWER events from connected devices.
@@ -401,12 +428,12 @@ export default function Host() {
           await saveGameState(gameId, s.revision, { ...result.patch, revision: s.revision + 1 });
         }
       } catch (err) {
-        setError(err.message || String(err));
+        handleSaveConflict(err);
       }
     }, ms);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state?.deadline_at, state?.phase, gameId]);
+  }, [state?.deadline_at, state?.phase, gameId, handleSaveConflict]);
 
   // Dice cube animation reacts to shared state.
   useEffect(() => {
@@ -458,12 +485,22 @@ export default function Host() {
       });
       await appendGameEvent(gameId, "QUESTION_OPEN", { cardNum: num }, "host");
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
     }
   };
 
   const updateTeamName = async (idx, name) => {
     const nextTeams = teams.map((t, i) => (i === idx ? { ...t, name: name || `Đội ${i + 1}` } : t));
+    setTeams(nextTeams);
+    try {
+      await saveTeams(gameId, nextTeams);
+    } catch (err) {
+      setError(err.message || String(err));
+    }
+  };
+
+  const regenerateTeamCode = async (idx) => {
+    const nextTeams = teams.map((t, i) => (i === idx ? { ...t, team_code: randomTeamCode() } : t));
     setTeams(nextTeams);
     try {
       await saveTeams(gameId, nextTeams);
@@ -526,7 +563,7 @@ export default function Host() {
       if (nextTeams !== tms) await saveTeams(gameId, nextTeams);
       await saveGameState(gameId, s.revision, patch);
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
     }
   };
 
@@ -545,7 +582,7 @@ export default function Host() {
         revision: s.revision + 1,
       });
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
       return;
     }
     setTimeout(async () => {
@@ -559,7 +596,7 @@ export default function Host() {
           revision: latest.revision + 1,
         });
       } catch (err) {
-        setError(err.message || String(err));
+        handleSaveConflict(err);
       }
     }, 1500);
   };
@@ -585,7 +622,7 @@ export default function Host() {
         revision: s.revision + 1,
       });
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
     }
   };
 
@@ -606,7 +643,7 @@ export default function Host() {
         revision: s.revision + 1,
       });
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
     }
   };
 
@@ -626,7 +663,7 @@ export default function Host() {
         revision: s.revision + 1,
       });
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
     }
   };
 
@@ -639,7 +676,7 @@ export default function Host() {
     try {
       await saveGameState(gameId, s.revision, next);
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
     }
   };
 
@@ -659,7 +696,24 @@ export default function Host() {
       });
       await setGameStatus(gameId, "finished");
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
+    }
+  };
+
+  // The winner overlay is a full-screen fixed panel with no close button of
+  // its own — without this, "Kết thúc & xếp hạng" strands the Host on that
+  // screen with the controls underneath now unreachable.
+  const closeWinner = async () => {
+    const s = stateRef.current;
+    if (!s) return;
+    try {
+      await saveGameState(gameId, s.revision, {
+        ...s,
+        show_winner: false,
+        revision: s.revision + 1,
+      });
+    } catch (err) {
+      handleSaveConflict(err);
     }
   };
 
@@ -715,7 +769,7 @@ export default function Host() {
       });
       await setGameStatus(gameId, "playing");
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
     }
   };
 
@@ -740,6 +794,16 @@ export default function Host() {
             <div className="sub" style={{ marginTop: 6 }}>
               {error}
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                if (gameId) reload(gameId);
+              }}
+              style={{ marginTop: 12 }}
+            >
+              Thử lại
+            </button>
           </div>
         </div>
       </div>
@@ -832,6 +896,17 @@ export default function Host() {
             <div key={t.team_key} className={"team-row" + (i === (state.answering_team_idx ?? 0) ? " active" : "")}>
               <div className="team-color" style={{ background: t.color }} />
               <input type="text" value={t.name} onChange={(e) => updateTeamName(i, e.target.value)} />
+              <span className="team-code" title="Mã đội — chia cho đại diện đội để tham gia ở /pick-team">
+                {t.team_code || t.team_key}
+              </span>
+              <button
+                type="button"
+                className="team-code-btn"
+                title="Tạo mã mới cho đội này"
+                onClick={() => regenerateTeamCode(i)}
+              >
+                🔄
+              </button>
               <span className="team-score">{t.score}</span>
             </div>
           ))}
@@ -989,13 +1064,14 @@ export default function Host() {
               </div>
             ))}
           </div>
-          <button
-            className="host-btn"
-            style={{ marginTop: 16 }}
-            onClick={() => setState((prev) => ({ ...prev, show_winner: false }))}
-          >
-            ✕ Đóng
-          </button>
+          <div className="winner-actions">
+            <button type="button" className="host-btn ghost" onClick={closeWinner}>
+              Đóng
+            </button>
+            <button type="button" className="host-btn" onClick={resetGame}>
+              Ván mới
+            </button>
+          </div>
         </div>
       </div>
 
