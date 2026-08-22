@@ -700,6 +700,23 @@ export default function Host() {
     }
   };
 
+  // The winner overlay is a full-screen fixed panel with no close button of
+  // its own — without this, "Kết thúc & xếp hạng" strands the Host on that
+  // screen with the controls underneath now unreachable.
+  const closeWinner = async () => {
+    const s = stateRef.current;
+    if (!s) return;
+    try {
+      await saveGameState(gameId, s.revision, {
+        ...s,
+        show_winner: false,
+        revision: s.revision + 1,
+      });
+    } catch (err) {
+      handleSaveConflict(err);
+    }
+  };
+
   const resetGame = async () => {
     const s = stateRef.current;
     const tms = teamsRef.current;
@@ -1046,6 +1063,14 @@ export default function Host() {
                 <span>{t.score} điểm</span>
               </div>
             ))}
+          </div>
+          <div className="winner-actions">
+            <button type="button" className="host-btn ghost" onClick={closeWinner}>
+              Đóng
+            </button>
+            <button type="button" className="host-btn" onClick={resetGame}>
+              Ván mới
+            </button>
           </div>
         </div>
       </div>
