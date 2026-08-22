@@ -3,11 +3,6 @@ import { Link } from 'react-router-dom'
 export default function Landing() {
   return (
     <>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;600;700&family=Noto+Sans:wght@400;500;700&display=swap"
-        rel="stylesheet"
-      />
-
       <style>{`
         .reg-body {
           min-height: 100svh;
