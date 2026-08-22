@@ -236,7 +236,10 @@ export default function MemePanel({ onDrop, disabled = false, teamColor = '#7a24
         {cooldownLeft > 0 && (
           <>
             <div className="meme-cooldown-bar">
-              <div className="meme-cooldown-fill" style={{ width: `${cooldownPct}%` }} />
+              <div
+                className="meme-cooldown-fill"
+                style={{ width: `${cooldownPct}%`, background: teamColor }}
+              />
             </div>
             <div className="meme-cooldown-text">
               Đợi {(cooldownLeft / 1000).toFixed(1)}s...

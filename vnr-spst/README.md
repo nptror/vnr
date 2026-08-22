@@ -14,6 +14,24 @@ for the design and `GAMEPLAY.md` for how a round plays out.
    `/pick-team` on their own device to join, then is routed to `/play`.
 5. Host begins once devices show as joined, opening cards from the `/host` board.
 
+## Deploy (Vercel)
+
+This is a client-only Vite SPA (react-router) backed by Supabase — no server code, so it's a
+static-site deploy.
+
+1. Import the GitHub repo into Vercel and set **Root Directory** to `vnr-spst` (this app lives in
+   a subfolder of the repo).
+2. Vercel auto-detects the Vite framework from `vnr-spst/vercel.json`; build command
+   `npm run build`, output directory `dist`.
+3. Add the two env vars from `.env.example` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) under
+   Project Settings → Environment Variables, for Production and Preview alike.
+4. `vercel.json` rewrites every path to `/index.html` so client-side routes (`/host`,
+   `/pick-team`, `/play`) work on hard refresh / deep link, since routing is handled by
+   react-router in the browser, not by the server.
+5. Every push to `main` and every PR gets its own Vercel deployment automatically via the Git
+   integration — no separate deploy workflow is needed. `.github/workflows/ci.yml` runs lint +
+   build on PRs targeting `vnr-spst/**` as a merge gate, independent of Vercel's own build.
+
 ---
 
 # React + Vite

@@ -28,7 +28,8 @@ import {
   subscribeToMemeDrops,
 } from "../game/gameRepository";
 import { isSupabaseConfigured } from "../lib/supabase";
-import MemeDrop, { useMemeDrop } from "../components/MemeDrop.jsx";
+import MemeDrop from "../components/MemeDrop.jsx";
+import { useMemeDrop } from "../hooks/useMemeDrop.js";
 import "./Host.css";
 
 const HOST_GAME_ID_KEY = "vnr_host_game_id";
