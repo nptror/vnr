@@ -41,6 +41,7 @@ export async function findGameByPin(pin) {
     .from("games")
     .select("*")
     .eq("pin", pin)
+    .neq("status", "finished")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();

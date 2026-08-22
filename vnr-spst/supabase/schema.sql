@@ -165,6 +165,12 @@ DECLARE
   v_game_id UUID;
   v_team_data JSONB;
 BEGIN
+  -- Only one game per PIN should ever be joinable at a time. Without this,
+  -- every test/practice run left its game as 'waiting'/'playing' forever,
+  -- so findGameByPin's "newest game with this PIN" could resolve to a stale
+  -- leftover game instead of the one the Host is actually running.
+  UPDATE games SET status = 'finished' WHERE pin = p_pin AND status != 'finished';
+
   INSERT INTO games (pin, status) VALUES (p_pin, 'waiting') RETURNING id INTO v_game_id;
 
   INSERT INTO game_state (game_id) VALUES (v_game_id);
