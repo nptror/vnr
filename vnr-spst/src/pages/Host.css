@@ -570,6 +570,16 @@
   border-bottom: 1px dashed var(--line);
 }
 
+.winner-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.winner-actions .host-btn {
+  flex: 1;
+}
+
 .hint {
   font-size: 12px;
   color: #6b6455;
