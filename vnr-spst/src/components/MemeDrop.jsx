@@ -1,4 +1,3 @@
-import { useState, useEffect, useCallback } from 'react'
 import MEMES from '../config/memes'
 
 /**
@@ -7,8 +6,6 @@ import MEMES from '../config/memes'
  *   { id, teamId, teamColor, memeId, x (0-100%), createdAt }
  * Meme tự xóa sau MEME_LIFETIME ms.
  */
-
-const MEME_LIFETIME = 3500 // 3.5 giây rồi fade out
 
 const STYLE = `
   .meme-drop-layer {
@@ -108,33 +105,4 @@ export default function MemeDrop({ activeMemes = [] }) {
       </div>
     </>
   )
-}
-
-/**
- * Hook để quản lý lifecycle của meme drops.
- * Tự xóa meme sau MEME_LIFETIME.
- */
-export function useMemeDrop() {
-  const [activeMemes, setActiveMemes] = useState([])
-
-  const addMeme = useCallback((memeData) => {
-    const item = {
-      ...memeData,
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      createdAt: Date.now(),
-    }
-    setActiveMemes(prev => [...prev, item])
-  }, [])
-
-  // Cleanup meme quá hạn
-  useEffect(() => {
-    if (activeMemes.length === 0) return
-    const timer = setInterval(() => {
-      const now = Date.now()
-      setActiveMemes(prev => prev.filter(m => now - m.createdAt < MEME_LIFETIME))
-    }, 500)
-    return () => clearInterval(timer)
-  }, [activeMemes.length])
-
-  return { activeMemes, addMeme }
 }
