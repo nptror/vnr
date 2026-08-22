@@ -989,6 +989,13 @@ export default function Host() {
               </div>
             ))}
           </div>
+          <button
+            className="host-btn"
+            style={{ marginTop: 16 }}
+            onClick={() => setState((prev) => ({ ...prev, show_winner: false }))}
+          >
+            ✕ Đóng
+          </button>
         </div>
       </div>
 
