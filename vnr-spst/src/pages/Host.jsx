@@ -294,6 +294,21 @@ export default function Host() {
     }
   }, []);
 
+  // A STALE_REVISION error means another writer (the answer-deadline
+  // timeout, or a just-in-time player answer) already saved first — that's
+  // routine under concurrent play, not a failure. Reload the fresh state
+  // instead of locking the screen behind a fatal error banner.
+  const handleSaveConflict = useCallback(
+    (err) => {
+      if (err?.code === "STALE_REVISION") {
+        reload(gameId);
+        return;
+      }
+      setError(err.message || String(err));
+    },
+    [gameId, reload]
+  );
+
   // Bootstrap: resume or create a game.
   useEffect(() => {
     if (!isSupabaseConfigured) return undefined;
@@ -355,10 +370,10 @@ export default function Host() {
           await saveGameState(gameId, s.revision, { ...result.patch, revision: s.revision + 1 });
         }
       } catch (err) {
-        setError(err.message || String(err));
+        handleSaveConflict(err);
       }
     },
-    [gameId]
+    [gameId, handleSaveConflict]
   );
 
   // Process PLAYER_ANSWER events from connected devices.
@@ -402,12 +417,12 @@ export default function Host() {
           await saveGameState(gameId, s.revision, { ...result.patch, revision: s.revision + 1 });
         }
       } catch (err) {
-        setError(err.message || String(err));
+        handleSaveConflict(err);
       }
     }, ms);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state?.deadline_at, state?.phase, gameId]);
+  }, [state?.deadline_at, state?.phase, gameId, handleSaveConflict]);
 
   // Dice cube animation reacts to shared state.
   useEffect(() => {
@@ -459,7 +474,7 @@ export default function Host() {
       });
       await appendGameEvent(gameId, "QUESTION_OPEN", { cardNum: num }, "host");
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
     }
   };
 
@@ -527,7 +542,7 @@ export default function Host() {
       if (nextTeams !== tms) await saveTeams(gameId, nextTeams);
       await saveGameState(gameId, s.revision, patch);
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
     }
   };
 
@@ -546,7 +561,7 @@ export default function Host() {
         revision: s.revision + 1,
       });
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
       return;
     }
     setTimeout(async () => {
@@ -560,7 +575,7 @@ export default function Host() {
           revision: latest.revision + 1,
         });
       } catch (err) {
-        setError(err.message || String(err));
+        handleSaveConflict(err);
       }
     }, 1500);
   };
@@ -586,7 +601,7 @@ export default function Host() {
         revision: s.revision + 1,
       });
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
     }
   };
 
@@ -607,7 +622,7 @@ export default function Host() {
         revision: s.revision + 1,
       });
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
     }
   };
 
@@ -627,7 +642,7 @@ export default function Host() {
         revision: s.revision + 1,
       });
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
     }
   };
 
@@ -640,7 +655,7 @@ export default function Host() {
     try {
       await saveGameState(gameId, s.revision, next);
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
     }
   };
 
@@ -660,7 +675,7 @@ export default function Host() {
       });
       await setGameStatus(gameId, "finished");
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
     }
   };
 
@@ -716,7 +731,7 @@ export default function Host() {
       });
       await setGameStatus(gameId, "playing");
     } catch (err) {
-      setError(err.message || String(err));
+      handleSaveConflict(err);
     }
   };
 
@@ -741,6 +756,16 @@ export default function Host() {
             <div className="sub" style={{ marginTop: 6 }}>
               {error}
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                if (gameId) reload(gameId);
+              }}
+              style={{ marginTop: 12 }}
+            >
+              Thử lại
+            </button>
           </div>
         </div>
       </div>
