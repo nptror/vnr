@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { findGameByPin, joinGame } from '../game/gameRepository'
 import { isSupabaseConfigured } from '../lib/supabase'
@@ -66,13 +66,21 @@ const TEAMS = [
 
 export default function PickTeam() {
     const navigate = useNavigate()
+    const pinInputRef = useRef(null)
     const [pin, setPin] = useState('')
+    const [pinError, setPinError] = useState(null)
     const [teamCode, setTeamCode] = useState('')
     const [selectedTeam, setSelectedTeam] = useState(null)
     const [error, setError] = useState(null)
     const [joining, setJoining] = useState(false)
 
     const openJoinForm = (team) => {
+        if (!pin.trim()) {
+            setPinError('Nhập mã PIN phòng trước khi chọn đội.')
+            pinInputRef.current?.focus()
+            return
+        }
+        setPinError(null)
         setSelectedTeam(team)
         setTeamCode('')
         setError(null)
@@ -298,8 +306,22 @@ export default function PickTeam() {
 
                     <div className="pt-pin-row">
                         <label htmlFor="pt-pin">Mã PIN phòng</label>
-                        <input id="pt-pin" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="1986" />
+                        <input
+                            id="pt-pin"
+                            ref={pinInputRef}
+                            value={pin}
+                            onChange={(e) => {
+                                setPin(e.target.value)
+                                if (pinError) setPinError(null)
+                            }}
+                            placeholder="1986"
+                        />
                     </div>
+                    {pinError && (
+                        <div className="pt-modal-error" style={{ marginBottom: 24, textAlign: 'center' }}>
+                            {pinError}
+                        </div>
+                    )}
 
                     {!isSupabaseConfigured && (
                         <div className="pt-modal-error" style={{ marginBottom: 24 }}>
@@ -329,7 +351,7 @@ export default function PickTeam() {
                                 <button
                                     className="pt-join-btn"
                                     style={{ backgroundColor: team.color, borderColor: team.color }}
-                                    disabled={!pin.trim() || !isSupabaseConfigured}
+                                    disabled={!isSupabaseConfigured}
                                     onClick={() => openJoinForm(team)}
                                 >
                                     THAM GIA
