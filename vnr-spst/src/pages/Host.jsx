@@ -34,6 +34,17 @@ import "./Host.css";
 
 const HOST_GAME_ID_KEY = "vnr_host_game_id";
 const ANSWER_SECONDS = 15;
+
+// Excludes visually-ambiguous characters (0/O, 1/I) so a code read off the
+// Host screen and typed on a phone doesn't get mistyped.
+const TEAM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function randomTeamCode() {
+  let code = "";
+  for (let i = 0; i < 4; i++) {
+    code += TEAM_CODE_CHARS[Math.floor(Math.random() * TEAM_CODE_CHARS.length)];
+  }
+  return code;
+}
 const MAX_WRONG_BEFORE_ABANDON = 3;
 
 function computeDeadlineAt() {
@@ -488,6 +499,16 @@ export default function Host() {
     }
   };
 
+  const regenerateTeamCode = async (idx) => {
+    const nextTeams = teams.map((t, i) => (i === idx ? { ...t, team_code: randomTeamCode() } : t));
+    setTeams(nextTeams);
+    try {
+      await saveTeams(gameId, nextTeams);
+    } catch (err) {
+      setError(err.message || String(err));
+    }
+  };
+
   const drawEffect = async () => {
     const s = stateRef.current;
     const tms = teamsRef.current;
@@ -858,6 +879,17 @@ export default function Host() {
             <div key={t.team_key} className={"team-row" + (i === (state.answering_team_idx ?? 0) ? " active" : "")}>
               <div className="team-color" style={{ background: t.color }} />
               <input type="text" value={t.name} onChange={(e) => updateTeamName(i, e.target.value)} />
+              <span className="team-code" title="Mã đội — chia cho đại diện đội để tham gia ở /pick-team">
+                {t.team_code || t.team_key}
+              </span>
+              <button
+                type="button"
+                className="team-code-btn"
+                title="Tạo mã mới cho đội này"
+                onClick={() => regenerateTeamCode(i)}
+              >
+                🔄
+              </button>
               <span className="team-score">{t.score}</span>
             </div>
           ))}

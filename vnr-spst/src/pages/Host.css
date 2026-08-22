@@ -43,6 +43,7 @@
   font-size: 30px;
   margin: 0;
   letter-spacing: 0.3px;
+  color: var(--ink);
 }
 
 .masthead .sub {
@@ -188,6 +189,7 @@
   margin: 0 0 12px;
   border-bottom: 1px solid var(--line);
   padding-bottom: 8px;
+  color: var(--ink);
 }
 
 .team-row {
@@ -225,6 +227,32 @@
   color: var(--ink);
 }
 
+.team-code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--maroon-dark);
+  background: var(--paper-dark);
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.team-code-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.team-code-btn:hover {
+  background: var(--paper-dark);
+}
+
 .team-score {
   margin-left: auto;
   font-family: 'Noto Serif', serif;
@@ -248,6 +276,7 @@
   margin: 0 0 4px;
   border-bottom: 1px solid var(--line);
   padding-bottom: 8px;
+  color: var(--ink);
 }
 
 .turn-label {
