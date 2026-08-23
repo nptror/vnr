@@ -9,7 +9,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ============================================================
 -- 1. BANG GAME — Phòng chơi
 -- ============================================================
-CREATE TABLE games (
+CREATE TABLE IF NOT EXISTS games (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   pin             TEXT NOT NULL DEFAULT '1986',  -- mã PIN (set sẵn, 1 phòng = 1 PIN)
   status          TEXT NOT NULL DEFAULT 'waiting'
@@ -22,7 +22,7 @@ CREATE TABLE games (
 -- ============================================================
 -- 2. BANG TEAMS — Các đội
 -- ============================================================
-CREATE TABLE teams (
+CREATE TABLE IF NOT EXISTS teams (
   id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   game_id       UUID NOT NULL REFERENCES games(id) ON DELETE CASCADE,
   team_key      TEXT NOT NULL,            -- 'red', 'blue', 'yellow', ...
@@ -39,7 +39,7 @@ CREATE TABLE teams (
 -- 3. BANG GAME_STATE — Trạng thái realtime (1 row / game)
 --    UPDATE liên tục → Supabase Realtime push đến clients
 -- ============================================================
-CREATE TABLE game_state (
+CREATE TABLE IF NOT EXISTS game_state (
   id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   game_id             UUID NOT NULL REFERENCES games(id) ON DELETE CASCADE UNIQUE,
 
@@ -121,7 +121,7 @@ $$;
 -- ============================================================
 -- 4. BANG GAME_EVENTS — Nhật ký sự kiện (audit log)
 -- ============================================================
-CREATE TABLE game_events (
+CREATE TABLE IF NOT EXISTS game_events (
   id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   game_id     UUID NOT NULL REFERENCES games(id) ON DELETE CASCADE,
   event_type  TEXT NOT NULL,                -- 'QUESTION_OPEN'|'ANSWER'|'DICE_ROLL'|'EFFECT'|'RESET'|'FINISH'
@@ -133,9 +133,9 @@ CREATE TABLE game_events (
 -- ============================================================
 -- INDEXES
 -- ============================================================
-CREATE INDEX idx_teams_game_id ON teams(game_id);
-CREATE INDEX idx_game_events_game_id ON game_events(game_id);
-CREATE INDEX idx_game_events_created_at ON game_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_teams_game_id ON teams(game_id);
+CREATE INDEX IF NOT EXISTS idx_game_events_game_id ON game_events(game_id);
+CREATE INDEX IF NOT EXISTS idx_game_events_created_at ON game_events(created_at);
 
 -- ============================================================
 -- AUTO UPDATE updated_at
@@ -148,10 +148,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_games_updated ON games;
 CREATE TRIGGER trg_games_updated
   BEFORE UPDATE ON games
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS trg_game_state_updated ON game_state;
 CREATE TRIGGER trg_game_state_updated
   BEFORE UPDATE ON game_state
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -212,12 +214,29 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ============================================================
--- REALTIME — Bật cho các bảng cần sync
+-- REALTIME — Bật cho các bảng cần sync (idempotent)
 -- ============================================================
-ALTER PUBLICATION supabase_realtime ADD TABLE games;
-ALTER PUBLICATION supabase_realtime ADD TABLE teams;
-ALTER PUBLICATION supabase_realtime ADD TABLE game_state;
-ALTER PUBLICATION supabase_realtime ADD TABLE game_events;
+DO $$
+DECLARE
+  t TEXT;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    CREATE PUBLICATION supabase_realtime;
+  END IF;
+
+  FOREACH t IN ARRAY ARRAY['games', 'teams', 'game_state', 'game_events'] LOOP
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime'
+        AND schemaname = 'public'
+        AND tablename = t
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);
+    END IF;
+  END LOOP;
+END;
+$$;
 
 -- ============================================================
 -- RLS — Cho phép anonymous (game demo)
@@ -227,7 +246,14 @@ ALTER TABLE teams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE game_state ENABLE ROW LEVEL SECURITY;
 ALTER TABLE game_events ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow all for games"       ON games       FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all for teams"      ON teams       FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all for game_state" ON game_state  FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all for games" ON games;
+CREATE POLICY "Allow all for games" ON games FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for teams" ON teams;
+CREATE POLICY "Allow all for teams" ON teams FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for game_state" ON game_state;
+CREATE POLICY "Allow all for game_state" ON game_state FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for game_events" ON game_events;
 CREATE POLICY "Allow all for game_events" ON game_events FOR ALL USING (true) WITH CHECK (true);

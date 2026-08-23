@@ -335,7 +335,8 @@ export default function Host() {
           }
         }
         if (!id) {
-          id = await createGame("1986", createShuffledCardDeck(), createShuffledEffectDeck());
+          const gamePin = localStorage.getItem('vnr_game_pin') || '1986';
+          id = await createGame(gamePin, createShuffledCardDeck(), createShuffledEffectDeck());
           localStorage.setItem(HOST_GAME_ID_KEY, id);
         }
         if (!cancelled) {
@@ -387,21 +388,36 @@ export default function Host() {
     [gameId, handleSaveConflict]
   );
 
-  // Process PLAYER_ANSWER events from connected devices.
+  // Process events from connected devices.
   useEffect(() => {
     if (!state || !teams.length) return;
     events.forEach((event) => {
-      if (event.event_type !== "PLAYER_ANSWER") return;
       if (processedEventIds.current.has(event.id)) return;
-      processedEventIds.current.add(event.id);
 
-      const s = stateRef.current;
-      if (!s || s.phase !== "answering") return;
-      const { cardNum, revision, optionIdx } = event.payload || {};
-      if (cardNum !== s.active_card_num) return;
-      if (revision !== s.revision) return;
-      if (event.created_by !== s.answering_team_key) return;
-      applyAnswer(optionIdx);
+      if (event.event_type === "PLAYER_ANSWER") {
+        processedEventIds.current.add(event.id);
+        const s = stateRef.current;
+        if (!s || s.phase !== "answering") return;
+        const { cardNum, revision, optionIdx } = event.payload || {};
+        if (cardNum !== s.active_card_num) return;
+        if (revision !== s.revision) return;
+        if (event.created_by !== s.answering_team_key) return;
+        applyAnswer(optionIdx);
+      } else if (event.event_type === "PLAYER_ROLL_DICE") {
+        processedEventIds.current.add(event.id);
+        const s = stateRef.current;
+        if (!s || s.phase !== "resolving_effect" || s.eff_body_buttons !== "dice") return;
+        if (s.show_dice || s.dice_rolling) return; // Prevent multiple clicks
+        const { revision } = event.payload || {};
+        if (revision !== s.revision) return;
+        const effectTeamKey = teamsRef.current[s.effect_team_idx]?.team_key;
+        if (event.created_by !== effectTeamKey) return;
+        
+        // Optimistically block subsequent duplicate events in this loop
+        stateRef.current = { ...s, show_dice: true, dice_rolling: true };
+        
+        rollDice();
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events]);
@@ -545,6 +561,7 @@ export default function Host() {
     let nextTeams = tms;
     if (effect.type === "points" || effect.type === "dice_subtract") {
       patch.eff_body_buttons = "dice";
+      patch.show_dice = true;
     } else if (effect.type === "lose_all") {
       nextTeams = loseAllScore(tms, winnerIdx);
       patch.effect_result = `${tms[winnerIdx]?.name} mất hết điểm!`;
@@ -601,30 +618,26 @@ export default function Host() {
     }, 1500);
   };
 
-  const confirmDice = async () => {
+  const confirmAndContinueDice = useCallback(async () => {
     const s = stateRef.current;
     const tms = teamsRef.current;
-    if (!s || !s.dice_result_visible) return;
+    if (!s || !s.show_dice) return;
+    
+    // Apply points
     const idx = s.effect_team_idx;
     const isSub = s.effect_type === "dice_subtract";
     const nextTeams = isSub ? subtractDiceScore(tms, idx, s.dice_value) : addDiceScore(tms, idx, s.dice_value);
-    const sign = isSub ? "-" : "+";
+    
+    // Move to next turn
+    const nextState = closeCard(s, nextTeams, idx); 
+    
     try {
       await saveTeams(gameId, nextTeams);
-      await saveGameState(gameId, s.revision, {
-        ...s,
-        effect_result: `🎲 ${s.dice_value} — ${tms[idx]?.name} ${sign}${s.dice_value} điểm!`,
-        show_eff_continue: true,
-        eff_body_buttons: null,
-        show_dice: false,
-        dice_rolling: false,
-        dice_result_visible: false,
-        revision: s.revision + 1,
-      });
+      await saveGameState(gameId, s.revision, nextState);
     } catch (err) {
       handleSaveConflict(err);
     }
-  };
+  }, [gameId, handleSaveConflict]);
 
   const resolveSteal = async (targetIdx) => {
     const s = stateRef.current;
@@ -989,23 +1002,18 @@ export default function Host() {
         )}
       </div>
 
-      {/* Effect Card Overlay */}
+      {/* Effect Card Overlay (Hidden for dice effects to show the dice modal instead) */}
       <div className={"overlay" + (state.show_effect ? " show" : "")}>
-        {state.show_effect && (
-          <div className="effect-card">
-            <div className="eff-target">{teams[state.effect_team_idx]?.name} bốc được:</div>
+        {state.show_effect && state.eff_body_buttons !== "dice" && (
+          <div className="eff-card">
+            <div className="eff-eyebrow">
+              Đội {teams[state.effect_team_idx]?.name} bốc được:
+            </div>
             <div className="eff-label">
               {state.effect_icon} {state.effect_label}
             </div>
             <div className="eff-desc">{state.effect_desc}</div>
             <div className="eff-body">
-              {state.eff_body_buttons === "dice" && !state.show_eff_continue && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", width: "100%" }}>
-                  <button onClick={rollDice} className="host-btn" disabled={state.show_dice}>
-                    🎲 Tung xúc xắc
-                  </button>
-                </div>
-              )}
               {state.eff_body_buttons === "steal" && !state.show_eff_continue && (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "8px", width: "100%" }}>
                   {teams.map(
@@ -1078,8 +1086,20 @@ export default function Host() {
       {/* ── Dice Modal ── */}
       <style>{DICE_STYLE}</style>
       <div className={"dice-overlay" + (state.show_dice ? "" : " hidden")}>
-        <div className="dice-modal">
-          <div className="dice-modal-title">Gieo Xúc Xắc — {teams[state.effect_team_idx]?.name ?? ""}</div>
+        <div className="dice-modal" style={{ position: "relative" }}>
+          
+          <div style={{ textAlign: 'center', marginBottom: '2rem', borderBottom: '0.5px solid #887272', paddingBottom: '1rem', width: '100%' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#554243', marginBottom: '1rem' }}>
+              Gieo Xúc Xắc — {teams[state.effect_team_idx]?.name ?? ""}
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#5c0c1c', marginBottom: '4px' }}>
+              <span style={{ fontSize: '28px', marginRight: '8px' }}>{state.effect_icon}</span>
+              {state.effect_label}
+            </div>
+            <div style={{ fontSize: '14px', color: '#555' }}>
+              {state.effect_desc}
+            </div>
+          </div>
 
           <div className="dice-scene">
             <div className="dice-wrapper" ref={wrapperRef}>
@@ -1095,18 +1115,25 @@ export default function Host() {
             <div className="dice-shadow" ref={shadowRef} />
           </div>
 
-          <div className={"dice-result" + (state.dice_result_visible ? "" : " hidden-result")}>
-            <span className="dice-result-text">{state.effect_type === "dice_subtract" ? "Trừ" : "Tiến lên"}</span>
-            <span className="dice-result-num" style={state.effect_type === "dice_subtract" ? { color: "#9B2335" } : {}}>
-              {state.dice_value ?? ""}
-            </span>
-            <span className="dice-result-text">bước</span>
-          </div>
+          {!state.dice_rolling && !state.dice_result_visible && (
+            <div style={{ marginTop: '1rem', textAlign: 'center', fontSize: '15px', color: '#887272', fontStyle: 'italic' }}>
+              Đang chờ {teams[state.effect_team_idx]?.name} tung xúc xắc…
+            </div>
+          )}
 
           {state.dice_result_visible && (
-            <button className="dice-confirm-btn" onClick={confirmDice}>
-              Xác nhận {state.effect_type === "dice_subtract" ? "-" : "+"} {state.dice_value} điểm
-            </button>
+            <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+              <div style={{
+                fontSize: '22px', fontWeight: 700,
+                color: state.effect_type === 'dice_subtract' ? '#9B2335' : '#3F5D45',
+                marginBottom: '1.2rem'
+              }}>
+                🎲 {state.dice_value} — {teams[state.effect_team_idx]?.name} {state.effect_type === 'dice_subtract' ? '-' : '+'}{state.dice_value} điểm!
+              </div>
+              <button className="dice-roll-btn" onClick={confirmAndContinueDice}>
+                Tiếp tục
+              </button>
+            </div>
           )}
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { findGameByPin, joinGame } from '../game/gameRepository'
 import { isSupabaseConfigured } from '../lib/supabase'
@@ -66,29 +66,11 @@ const TEAMS = [
 
 export default function PickTeam() {
     const navigate = useNavigate()
-    const pinInputRef = useRef(null)
-    const [pin, setPin] = useState('')
-    const [pinError, setPinError] = useState(null)
-    const [teamCode, setTeamCode] = useState('')
-    const [selectedTeam, setSelectedTeam] = useState(null)
+    const [pin] = useState(() => localStorage.getItem('vnr_game_pin') || '1986')
     const [error, setError] = useState(null)
     const [joining, setJoining] = useState(false)
 
-    const openJoinForm = (team) => {
-        if (!pin.trim()) {
-            setPinError('Nhập mã PIN phòng trước khi chọn đội.')
-            pinInputRef.current?.focus()
-            return
-        }
-        setPinError(null)
-        setSelectedTeam(team)
-        setTeamCode('')
-        setError(null)
-    }
-
-    const handleJoin = async (e) => {
-        e.preventDefault()
-        if (!selectedTeam) return
+    const handleDirectJoin = async (team) => {
         if (!isSupabaseConfigured) {
             setError('Supabase chưa được cấu hình.')
             return
@@ -98,11 +80,12 @@ export default function PickTeam() {
         try {
             const game = await findGameByPin(pin.trim())
             if (!game) throw new Error('Không tìm thấy phòng chơi với mã PIN này.')
-            const { gameId, teamKey } = await joinGame(game.id, selectedTeam.id, teamCode.trim())
+            // By default, the team code is equal to the team id (e.g. 'red')
+            const { gameId, teamKey } = await joinGame(game.id, team.id, team.id)
             localStorage.setItem(SESSION_KEY, JSON.stringify({ gameId, teamKey }))
             navigate('/play')
         } catch (err) {
-            setError(err.message || 'Không thể tham gia. Kiểm tra lại PIN và mã đội.')
+            setError(err.message || 'Không thể tham gia. Kiểm tra lại cấu hình hoặc liên hệ Host.')
         } finally {
             setJoining(false)
         }
@@ -292,31 +275,19 @@ export default function PickTeam() {
                 <main className="pt-main">
                     <header className="pt-header">
                         <h1>XÁC ĐỊNH ĐƠN VỊ CHIẾN ĐẤU</h1>
-                        <p>Nhập mã PIN phòng chơi, chọn đội của bạn và nhập mã đội để tham gia.</p>
+                        <p>Chọn đội của bạn và nhập mã đội để tham gia.</p>
                     </header>
 
-                    <div className="pt-pin-row">
-                        <label htmlFor="pt-pin">Mã PIN phòng</label>
-                        <input
-                            id="pt-pin"
-                            ref={pinInputRef}
-                            value={pin}
-                            onChange={(e) => {
-                                setPin(e.target.value)
-                                if (pinError) setPinError(null)
-                            }}
-                            placeholder="1986"
-                        />
-                    </div>
-                    {pinError && (
-                        <div className="pt-modal-error" style={{ marginBottom: 24, textAlign: 'center' }}>
-                            {pinError}
-                        </div>
-                    )}
+
 
                     {!isSupabaseConfigured && (
-                        <div className="pt-modal-error" style={{ marginBottom: 24 }}>
+                        <div className="pt-modal-error" style={{ marginBottom: 24, textAlign: 'center' }}>
                             Supabase chưa được cấu hình — không thể tham gia phòng chơi.
+                        </div>
+                    )}
+                    {error && (
+                        <div className="pt-modal-error" style={{ marginBottom: 24, textAlign: 'center', fontSize: '16px' }}>
+                            {error}
                         </div>
                     )}
 
@@ -342,10 +313,10 @@ export default function PickTeam() {
                                 <button
                                     className="pt-join-btn"
                                     style={{ backgroundColor: team.color, borderColor: team.color }}
-                                    disabled={!isSupabaseConfigured}
-                                    onClick={() => openJoinForm(team)}
+                                    disabled={!isSupabaseConfigured || joining}
+                                    onClick={() => handleDirectJoin(team)}
                                 >
-                                    THAM GIA
+                                    {joining ? 'ĐANG VÀO...' : 'THAM GIA'}
                                 </button>
                             </article>
                         ))}
@@ -356,32 +327,6 @@ export default function PickTeam() {
                     <div className="pt-footer-copy">© 1986 BAN TUYÊN GIÁO TRUNG ƯƠNG - LƯU TRỮ QUỐC GIA</div>
                 </footer>
 
-                {selectedTeam && (
-                    <div className="pt-modal-backdrop" onClick={() => !joining && setSelectedTeam(null)}>
-                        <div className="pt-modal" onClick={(e) => e.stopPropagation()}>
-                            <h3 style={{ color: selectedTeam.color }}>Tham gia {selectedTeam.name}</h3>
-                            <form onSubmit={handleJoin}>
-                                <label htmlFor="pt-code">Mã đội (do Host cung cấp)</label>
-                                <input
-                                    id="pt-code"
-                                    autoFocus
-                                    value={teamCode}
-                                    onChange={(e) => setTeamCode(e.target.value)}
-                                    placeholder={selectedTeam.id}
-                                />
-                                {error && <div className="pt-modal-error">{error}</div>}
-                                <div className="pt-modal-actions">
-                                    <button type="button" onClick={() => setSelectedTeam(null)} disabled={joining}>
-                                        Hủy
-                                    </button>
-                                    <button type="submit" className="primary" disabled={joining || !teamCode.trim()}>
-                                        {joining ? 'Đang vào...' : 'Xác nhận'}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )}
             </div>
         </>
     )

@@ -1,6 +1,13 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 export default function Landing() {
+  const [pin, setPin] = useState('1986')
+
+  const savePin = () => {
+    localStorage.setItem('vnr_game_pin', pin.trim() || '1986')
+  }
+
   return (
     <>
       <style>{`
@@ -129,11 +136,21 @@ export default function Landing() {
 
           <hr className="divider" />
 
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '2rem' }}>
+            <label htmlFor="landing-pin" style={{ fontFamily: "'Noto Serif', serif", fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.5rem', color: '#141b2c' }}>MÃ PIN PHÒNG CHƠI</label>
+            <input 
+              id="landing-pin"
+              value={pin}
+              onChange={e => setPin(e.target.value)}
+              style={{ border: '2px solid #141b2c', padding: '0.5rem 1rem', fontSize: '18px', textAlign: 'center', maxWidth: '160px', fontFamily: "'Courier New', monospace", fontWeight: 'bold' }}
+            />
+          </div>
+
           {/* Role navigation */}
           <div>
             <h2 className="role-heading">Chọn Vai Trò Của Bạn</h2>
             <div className="role-grid">
-              <Link to="/host" className="role-card coordinator">
+              <Link to="/host" className="role-card coordinator" onClick={savePin}>
                 <div>
                   <div className="role-name">Người Điều Phối</div>
                   <p className="role-desc">Quản lý lượt chơi và chấm điểm.</p>
@@ -141,7 +158,7 @@ export default function Landing() {
                 <div className="go-arrow"><div className="box">→</div></div>
               </Link>
 
-              <Link to="/pick-team" className="role-card player">
+              <Link to="/pick-team" className="role-card player" onClick={savePin}>
                 <div>
                   <div className="role-name">Người Chơi</div>
                   <p className="role-desc">Tham gia trả lời câu hỏi.</p>

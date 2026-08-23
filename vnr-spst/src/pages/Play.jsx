@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getCardByNumber } from '../game/catalog'
-import { rotationForDiceValue } from '../game/transitions'
-import { loadGame, subscribeToGame, submitAnswerEvent, sendMemeDrop } from '../game/gameRepository'
+import { loadGame, subscribeToGame, submitAnswerEvent, submitDiceRollEvent, sendMemeDrop } from '../game/gameRepository'
 import { isSupabaseConfigured } from '../lib/supabase'
 import MemePanel from '../components/MemePanel.jsx'
 
@@ -470,10 +469,7 @@ export default function Play() {
   const [submittedRevision, setSubmittedRevision] = useState(null)
   const [submitError, setSubmitError] = useState(null)
   const [timeLeft, setTimeLeft] = useState(ANSWER_SECONDS)
-
-  const cubeRef = useRef(null)
-  const wrapperRef = useRef(null)
-  const shadowRef = useRef(null)
+  const [activeMemes, setActiveMemes] = useState([])
 
   useEffect(() => {
     if (!session) navigate('/pick-team', { replace: true })
@@ -514,28 +510,6 @@ export default function Play() {
     }, 1000)
     return () => clearInterval(id)
   }, [state?.deadline_at, state?.phase])
-
-  useEffect(() => {
-    if (!state) return
-    if (state.dice_rolling) {
-      const [rx, ry] = rotationForDiceValue(state.dice_value)
-      if (cubeRef.current) {
-        cubeRef.current.style.transition = 'none'
-        cubeRef.current.style.transform = 'rotateX(0deg) rotateY(0deg)'
-        void cubeRef.current.offsetHeight
-        cubeRef.current.style.transition = ''
-      }
-      if (wrapperRef.current) wrapperRef.current.classList.add('play-dice-bouncing')
-      if (shadowRef.current) shadowRef.current.classList.add('play-shadow-rolling')
-      requestAnimationFrame(() => {
-        if (cubeRef.current) cubeRef.current.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`
-      })
-    } else {
-      if (wrapperRef.current) wrapperRef.current.classList.remove('play-dice-bouncing')
-      if (shadowRef.current) shadowRef.current.classList.remove('play-shadow-rolling')
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state?.dice_rolling, state?.dice_value])
 
   if (!session) return null
 
@@ -581,6 +555,10 @@ export default function Play() {
     answeringTeam?.team_key === session.teamKey &&
     !state.answer_submission_team_key
 
+  const isMyEffectTurn =
+    state?.phase === 'resolving_effect' &&
+    teams[state.effect_team_idx]?.team_key === session.teamKey
+
   const alreadySubmitted = submittedRevision !== null && submittedRevision === state.revision
 
   const handleSelect = async (idx) => {
@@ -596,11 +574,20 @@ export default function Play() {
         optionIdx: idx,
       })
     } catch (err) {
-      // Network hiccup on submit — let them retry the click instead of
-      // locking the whole screen behind the fatal-error view. Scope the
-      // error to this revision so it doesn't linger into a future turn.
       setSubmittedRevision(null)
       setSubmitError({ atRevision: state.revision, message: err.message || String(err) })
+    }
+  }
+
+  const handleRollDice = async () => {
+    try {
+      await submitDiceRollEvent({
+        gameId: session.gameId,
+        teamKey: session.teamKey,
+        revision: state.revision,
+      })
+    } catch (err) {
+      console.error(err)
     }
   }
 
@@ -709,7 +696,13 @@ export default function Play() {
                 </div>
               </div>
 
-              {!activeCard ? (
+              {state?.phase === 'resolving_effect' ? (
+                <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#887272', fontFamily: "'Noto Serif', serif" }}>
+                  <div style={{ fontSize: 48, marginBottom: '1rem' }}>🎉</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, marginBottom: '0.5rem' }}>Đang giải quyết Thẻ chức năng</div>
+                  <div style={{ fontSize: 14 }}>Hãy hướng mắt lên màn hình Host!</div>
+                </div>
+              ) : !activeCard ? (
                 <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#887272', fontFamily: "'Noto Serif', serif" }}>
                   <div style={{ fontSize: 48, marginBottom: '1rem' }}>⏳</div>
                   <div style={{ fontSize: 18, fontWeight: 600, marginBottom: '0.5rem' }}>Chờ câu hỏi từ Ban Tổ chức</div>
@@ -785,32 +778,47 @@ export default function Play() {
             <span className="play-footer-copy">© 1986-2026 BAN TUYÊN GIÁO TRUNG ƯƠNG</span>
           </div>
         </footer>
+      </div>
 
-        <style>{DICE_STYLE}</style>
-        <div className={`play-dice-overlay${state.show_dice ? '' : ' hidden'}`}>
-          <div className="play-dice-modal">
-            <div className="play-dice-title">Gieo Xúc Xắc — {teams[state.effect_team_idx]?.name ?? ''}</div>
-            <div className="play-dice-scene">
-              <div className="play-dice-wrapper" ref={wrapperRef}>
-                <div className="play-dice-cube" ref={cubeRef}>
-                  <div className="play-dice-face front">1</div>
-                  <div className="play-dice-face back">6</div>
-                  <div className="play-dice-face right">3</div>
-                  <div className="play-dice-face left">4</div>
-                  <div className="play-dice-face top">2</div>
-                  <div className="play-dice-face bottom">5</div>
-                </div>
-              </div>
-              <div className="play-dice-shadow" ref={shadowRef} />
-            </div>
-            <div className={`play-dice-result${state.dice_result_visible ? '' : ' hidden-result'}`}>
-              <span className="play-dice-result-text">{state.effect_type === 'dice_subtract' ? 'Trừ' : 'Tiến lên'}</span>
-              <span className="play-dice-result-num">{state.dice_value ?? ''}</span>
-              <span className="play-dice-result-text">bước</span>
-            </div>
+      {/* Popup Roll Dice for Active Team */}
+      {state?.phase === 'resolving_effect' && isMyEffectTurn && state.eff_body_buttons === 'dice' && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 100,
+          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          animation: 'fadeIn 0.2s ease-out'
+        }}>
+          <div style={{
+            background: '#faf8ff', padding: '2.5rem 1.5rem', borderRadius: '16px',
+            textAlign: 'center', maxWidth: '400px', width: '90%',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.4)',
+            border: '2px solid #5c0c1c'
+          }}>
+            <h2 style={{ margin: '0 0 0.5rem 0', color: '#5c0c1c', fontSize: '28px', fontFamily: "'Noto Serif', serif" }}>ĐẾN LƯỢT ĐỘI BẠN</h2>
+            <p style={{ margin: '0 0 2rem 0', color: '#554243', fontSize: '16px' }}>Thẻ chức năng yêu cầu tung xúc xắc. Hãy bấm nút dưới đây!</p>
+            <button
+              onClick={handleRollDice}
+              disabled={state.dice_rolling || state.dice_result_visible}
+              style={{
+                fontSize: '22px', padding: '1rem 2rem', background: '#5c0c1c', color: 'white',
+                border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, width: '100%',
+                opacity: (state.dice_rolling || state.dice_result_visible) ? 0.5 : 1,
+                transition: 'transform 0.1s'
+              }}
+              onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
+              onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            >
+              🎲 TUNG XÚC XẮC
+            </button>
+            {(state.dice_rolling || state.dice_result_visible) && (
+              <p style={{ marginTop: '1.5rem', color: '#ba1a1a', fontWeight: 'bold', fontSize: '16px' }}>
+                Đang tung... Hãy nhìn lên màn hình Host để xem kết quả!
+              </p>
+            )}
           </div>
         </div>
-      </div>
+      )}
     </>
   )
 }

@@ -156,6 +156,15 @@ export function submitAnswerEvent({ gameId, teamKey, cardNum, revision, optionId
   );
 }
 
+export function submitDiceRollEvent({ gameId, teamKey, revision }) {
+  return appendGameEvent(
+    gameId,
+    "PLAYER_ROLL_DICE",
+    { revision },
+    teamKey
+  );
+}
+
 // Meme drops are ephemeral and cosmetic only — they use Supabase Realtime
 // Broadcast (no table, nothing persisted) instead of a game_events row.
 const memeChannels = new Map();
