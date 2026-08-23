@@ -407,7 +407,7 @@ export default function Host() {
         processedEventIds.current.add(event.id);
         const s = stateRef.current;
         if (!s || s.phase !== "resolving_effect" || s.eff_body_buttons !== "dice") return;
-        if (s.show_dice || s.dice_rolling) return; // Prevent multiple clicks
+        if (s.dice_rolling) return; // Prevent duplicate rolls while animation is running
         const { revision } = event.payload || {};
         if (revision !== s.revision) return;
         const effectTeamKey = teamsRef.current[s.effect_team_idx]?.team_key;
@@ -561,7 +561,7 @@ export default function Host() {
     let nextTeams = tms;
     if (effect.type === "points" || effect.type === "dice_subtract") {
       patch.eff_body_buttons = "dice";
-      patch.show_dice = true;
+      // show_dice is NOT set here — the modal only opens when rollDice() runs
     } else if (effect.type === "lose_all") {
       nextTeams = loseAllScore(tms, winnerIdx);
       patch.effect_result = `${tms[winnerIdx]?.name} mất hết điểm!`;
