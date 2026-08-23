@@ -281,13 +281,13 @@ export const EFFECT_DEFINITIONS = [
     type: "points",
     icon: "🎲",
     label: "Rút Điểm May Mắn",
-    desc: "Tung xúc xắc để nhận điểm từ 1 đến 5.",
+    desc: "Tung xúc xắc để nhận điểm từ 100 đến 1000.",
   },
   {
     type: "dice_subtract",
     icon: "🎲",
     label: "Tung Xúc Xắc Trừ Điểm",
-    desc: "Tung xúc xắc để trừ 1 đến 5 điểm.",
+    desc: "Tung xúc xắc để trừ từ 100 đến 1000 điểm.",
   },
   {
     type: "lose_all",
@@ -305,7 +305,7 @@ export const EFFECT_DEFINITIONS = [
     type: "steal",
     icon: "🗡️",
     label: "Cướp Điểm",
-    desc: "Chọn 1 đội khác để cướp 5 điểm (nếu đội đó có ít hơn 5 thì lấy hết).",
+    desc: "Chọn 1 đội khác để cướp 500 điểm (nếu đội đó có ít hơn 500 thì lấy hết).",
   },
   {
     type: "swap",

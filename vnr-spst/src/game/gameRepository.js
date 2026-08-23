@@ -137,15 +137,26 @@ export function createCoalescedReloader(fetchFn, delayMs = 150) {
   return { schedule, cancel };
 }
 
+// supabase-js keys channels by topic, and removeChannel() deletes the key
+// asynchronously AFTER a network round trip. Under React StrictMode's
+// setup→cleanup→setup double-mount, a fixed topic hands back the OLD channel
+// instance mid-unsubscribe, leaving a silently dead subscription (no more
+// realtime updates). A unique topic always yields a fresh instance instead.
+let channelSeq = 0;
+
 export function subscribeToGame(gameId, onChange) {
   const client = getClient();
   const channel = client
-    .channel(`game:${gameId}`)
+    .channel(`game:${gameId}:${(channelSeq += 1)}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "games", filter: `id=eq.${gameId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "teams", filter: `game_id=eq.${gameId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "game_state", filter: `game_id=eq.${gameId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "game_events", filter: `game_id=eq.${gameId}` }, onChange)
-    .subscribe();
+    .subscribe((status) => {
+      // Socket hiccup: force an HTTP refresh now; supabase-js will also
+      // rejoin the channel automatically once the socket recovers.
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") onChange();
+    });
   return () => client.removeChannel(channel);
 }
 

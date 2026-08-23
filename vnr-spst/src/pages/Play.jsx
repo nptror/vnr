@@ -405,7 +405,13 @@ export default function Play() {
   useEffect(() => {
     if (!reload || !isSupabaseConfigured) return undefined
     reload.schedule()
-    return () => reload.cancel()
+    // Safety net: if a realtime notification is ever missed (socket drop,
+    // StrictMode channel race), this keeps the page within ~5s of the truth.
+    const id = setInterval(() => reload.schedule(), 5000)
+    return () => {
+      clearInterval(id)
+      reload.cancel()
+    }
   }, [reload])
 
   useEffect(() => {

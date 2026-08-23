@@ -36,16 +36,6 @@ import "./Host.css";
 const HOST_GAME_ID_KEY = "vnr_host_game_id";
 const ANSWER_SECONDS = 15;
 
-// Excludes visually-ambiguous characters (0/O, 1/I) so a code read off the
-// Host screen and typed on a phone doesn't get mistyped.
-const TEAM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-function randomTeamCode() {
-  let code = "";
-  for (let i = 0; i < 4; i++) {
-    code += TEAM_CODE_CHARS[Math.floor(Math.random() * TEAM_CODE_CHARS.length)];
-  }
-  return code;
-}
 const MAX_WRONG_BEFORE_ABANDON = 3;
 
 function computeDeadlineAt() {
@@ -111,7 +101,7 @@ const DICE_STYLE = `
     border-radius: 12px;
     display: flex; align-items: center; justify-content: center;
     font-family: 'Courier New', monospace;
-    font-size: 48px; font-weight: bold;
+    font-size: 28px; font-weight: bold;
     color: #141b2c;
     text-shadow: 1px 1px 0 rgba(0,0,0,0.4), -0.5px -0.5px 0 rgba(0,0,0,0.2);
     box-shadow: inset 0 0 15px rgba(0,0,0,0.05);
@@ -266,6 +256,58 @@ function computeTimeoutAdvance(state, teams) {
   };
 }
 
+// Effect-card announcement overlay. Stays up while waiting for the active
+// team to act; once the outcome is saved (show_eff_continue) it auto-hides
+// after 4s, and a manual close button is available meanwhile. The parent
+// renders it with `key={state.revision}`, so the remount that happens when
+// the team's choice is saved brings it back showing the result.
+function EffectCardOverlay({ state, teamName, onContinue }) {
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    if (!state.show_eff_continue) return undefined;
+    const id = setTimeout(() => setDismissed(true), 4000);
+    return () => clearTimeout(id);
+  }, [state.show_eff_continue]);
+
+  if (dismissed) return null;
+
+  return (
+    <div className="overlay show">
+      <div className="effect-card" style={{ position: "relative" }}>
+        {!state.show_eff_continue && (
+          <button
+            type="button"
+            aria-label="Đóng"
+            onClick={() => setDismissed(true)}
+            style={{ position: "absolute", top: 10, right: 12, background: "none", border: "none", fontSize: 22, lineHeight: 1, cursor: "pointer", color: "#887272" }}
+          >
+            ✕
+          </button>
+        )}
+        <div className="eff-target">
+          Đội {teamName} bốc được:
+        </div>
+        <div className="eff-label">
+          {state.effect_icon} {state.effect_label}
+        </div>
+        <div className="eff-desc">{state.effect_desc}</div>
+        <div className="eff-body">
+          {(state.eff_body_buttons === "steal" || state.eff_body_buttons === "swap") && !state.show_eff_continue && (
+            <div style={{ marginTop: '1rem', fontStyle: 'italic', color: '#887272', fontSize: '20px' }}>
+              Đang chờ Đội {teamName} chọn đội mục tiêu trên điện thoại…
+            </div>
+          )}
+          {state.effect_result && <div style={{ marginTop: 12, fontWeight: 600 }}>{state.effect_result}</div>}
+        </div>
+        <button className="host-btn" style={{ marginTop: 14 }} onClick={onContinue}>
+          Tiếp tục
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Host() {
   const [gameId, setGameId] = useState(null);
   const [teams, setTeams] = useState([]);
@@ -368,11 +410,16 @@ export default function Host() {
   }, [gameId, reload]);
 
   // Initial (and per-gameId) fetch, plus cleanup of any pending debounced
-  // fetch when the game id changes or the page unmounts.
+  // fetch when the game id changes or the page unmounts. The interval is a
+  // safety net for missed realtime notifications (socket drop, channel race).
   useEffect(() => {
     if (!reload) return undefined;
     reload.schedule();
-    return () => reload.cancel();
+    const id = setInterval(() => reload.schedule(), 5000);
+    return () => {
+      clearInterval(id);
+      reload.cancel();
+    };
   }, [reload]);
 
   // Meme drops from Play devices — ephemeral, cosmetic only.
@@ -406,7 +453,8 @@ export default function Host() {
     const s = stateRef.current;
     if (!s || s.phase !== "resolving_effect" || s.eff_body_buttons !== "dice") return;
     const face = Math.floor(Math.random() * 6) + 1;
-    const score = Math.min(face, 5);
+    const DICE_VALUES = [100, 300, 500, 200, 600, 1000];
+    const score = DICE_VALUES[face - 1];
     try {
       await saveGameState(gameId, s.revision, {
         ...s,
@@ -454,7 +502,7 @@ export default function Host() {
     const tms = teamsRef.current;
     if (!s) return;
     const fromIdx = s.effect_team_idx;
-    const amount = Math.min(5, Math.max(0, tms[targetIdx]?.score ?? 0));
+    const amount = Math.min(500, Math.max(0, tms[targetIdx]?.score ?? 0));
     const nextTeams = stealUpToFive(tms, fromIdx, targetIdx);
     try {
       await saveTeams(gameId, nextTeams);
@@ -519,9 +567,10 @@ export default function Host() {
           const effectTeamKey = teamsRef.current[s.effect_team_idx]?.team_key;
           if (event.created_by !== effectTeamKey) continue;
 
-          // Optimistically block subsequent duplicate events in this loop
-          stateRef.current = { ...s, show_dice: true, dice_rolling: true };
-
+          // rollDice optimistically marks dice_rolling on stateRef after its
+          // save, so duplicates later in this batch are skipped by the
+          // s.dice_rolling guard above. Mutating stateRef here instead would
+          // poison the diff base that rollDice compares against.
           await rollDice();
         } else if (event.event_type === "PLAYER_EFFECT_TARGET") {
           processedEventIds.current.add(event.id);
@@ -533,9 +582,6 @@ export default function Host() {
           if (revision !== s.revision) continue;
           const effectTeamKey = teamsRef.current[s.effect_team_idx]?.team_key;
           if (event.created_by !== effectTeamKey) continue;
-
-          // Optimistically block duplicates
-          stateRef.current = { ...s, show_eff_continue: true };
 
           if (s.eff_body_buttons === "steal") await resolveSteal(targetIdx);
           if (s.eff_body_buttons === "swap") await resolveSwap(targetIdx);
@@ -633,16 +679,6 @@ export default function Host() {
 
   const updateTeamName = async (idx, name) => {
     const nextTeams = teams.map((t, i) => (i === idx ? { ...t, name: name || `Đội ${i + 1}` } : t));
-    setTeams(nextTeams);
-    try {
-      await saveTeams(gameId, nextTeams);
-    } catch (err) {
-      setError(err.message || String(err));
-    }
-  };
-
-  const regenerateTeamCode = async (idx) => {
-    const nextTeams = teams.map((t, i) => (i === idx ? { ...t, team_code: randomTeamCode() } : t));
     setTeams(nextTeams);
     try {
       await saveTeams(gameId, nextTeams);
@@ -908,10 +944,10 @@ export default function Host() {
 
       <div className="legend effects">
         <span>
-          <b style={{ background: "#3F5D45" }} />+1–5 điểm (tung xúc xắc)
+          <b style={{ background: "#3F5D45" }} />+100–1000 điểm (tung xúc xắc)
         </span>
         <span>
-          <b style={{ background: "#9B2335" }} />-1–5 điểm (tung xúc xắc trừ)
+          <b style={{ background: "#9B2335" }} />-100–1000 điểm (tung xúc xắc trừ)
         </span>
         <span>
           <b style={{ background: "#B4B2A9" }} />Mất hết điểm
@@ -956,24 +992,19 @@ export default function Host() {
       <div className="panel">
         <div className="teams">
           <h2>Bảng điểm</h2>
-          {teams.map((t, i) => (
-            <div key={t.team_key} className={"team-row" + (i === (state.answering_team_idx ?? 0) ? " active" : "")}>
-              <div className="team-color" style={{ background: t.color }} />
-              <input type="text" value={t.name} onChange={(e) => updateTeamName(i, e.target.value)} />
-              <span className="team-code" title="Mã đội — chia cho đại diện đội để tham gia ở /pick-team">
-                {t.team_code || t.team_key}
-              </span>
-              <button
-                type="button"
-                className="team-code-btn"
-                title="Tạo mã mới cho đội này"
-                onClick={() => regenerateTeamCode(i)}
-              >
-                🔄
-              </button>
-              <span className="team-score">{t.score}</span>
-            </div>
-          ))}
+          {/* Display order: highest score first. `i` stays the team's index in
+              the underlying teams array so renaming and the active highlight
+              keep working. */}
+          {[...teams]
+            .map((t, i) => ({ t, i }))
+            .sort((a, b) => b.t.score - a.t.score)
+            .map(({ t, i }) => (
+              <div key={t.team_key} className={"team-row" + (i === (state.answering_team_idx ?? 0) ? " active" : "")}>
+                <div className="team-color" style={{ background: t.color }} />
+                <input type="text" value={t.name} onChange={(e) => updateTeamName(i, e.target.value)} />
+                <span className="team-score">{t.score}</span>
+              </div>
+            ))}
         </div>
 
         <div className="controls">
@@ -1053,33 +1084,17 @@ export default function Host() {
         )}
       </div>
 
-      {/* Effect Card Overlay: skip for dice so dice modal handles its own display */}
-      <div className={"overlay" + (state.show_effect && state.eff_body_buttons !== "dice" ? " show" : "")}>
-        {state.show_effect && state.eff_body_buttons !== "dice" && (
-          <div className="effect-card">
-            <div className="eff-target">
-              Đội {teams[state.effect_team_idx]?.name} bốc được:
-            </div>
-            <div className="eff-label">
-              {state.effect_icon} {state.effect_label}
-            </div>
-            <div className="eff-desc">{state.effect_desc}</div>
-            <div className="eff-body">
-              {(state.eff_body_buttons === "steal" || state.eff_body_buttons === "swap") && !state.show_eff_continue && (
-                <div style={{ marginTop: '1rem', fontStyle: 'italic', color: '#887272', fontSize: '20px' }}>
-                  Đang chờ Đội {teams[state.effect_team_idx]?.name} chọn đội mục tiêu trên điện thoại…
-                </div>
-              )}
-              {state.effect_result && <div style={{ marginTop: 12, fontWeight: 600 }}>{state.effect_result}</div>}
-            </div>
-            {state.show_eff_continue && (
-              <button className="host-btn" style={{ marginTop: 14 }} onClick={continueAfterEffect}>
-                Tiếp tục
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Effect Card Overlay: skip for dice so dice modal handles its own display.
+          key={state.revision} remounts (undismissed) whenever a new effect is
+          drawn or the team's target choice is saved. */}
+      {state.show_effect && state.eff_body_buttons !== "dice" && (
+        <EffectCardOverlay
+          key={state.revision}
+          state={state}
+          teamName={teams[state.effect_team_idx]?.name}
+          onContinue={continueAfterEffect}
+        />
+      )}
 
       {/* Winner Overlay */}
       <div className={"winner" + (state.show_winner ? " show" : "")}>
@@ -1128,12 +1143,12 @@ export default function Host() {
           <div className="dice-scene">
             <div className="dice-wrapper" ref={wrapperRef}>
               <div className="dice-cube" ref={cubeRef}>
-                <div className="dice-face front">1</div>
-                <div className="dice-face back">6</div>
-                <div className="dice-face right">3</div>
-                <div className="dice-face left">4</div>
-                <div className="dice-face top">2</div>
-                <div className="dice-face bottom">5</div>
+                <div className="dice-face front">100</div>
+                <div className="dice-face back">1000</div>
+                <div className="dice-face right">500</div>
+                <div className="dice-face left">200</div>
+                <div className="dice-face top">300</div>
+                <div className="dice-face bottom">600</div>
               </div>
             </div>
             <div className="dice-shadow" ref={shadowRef} />

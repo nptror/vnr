@@ -1,9 +1,12 @@
+// Cube face layout (Host JSX): front=100, top=300, right=500, left=200,
+// bottom=600, back=1000 — matching the DICE_VALUES array in rollDice.
 const DICE_ROTATIONS = {
-  1: [1440, 1440],
-  2: [1350, 1440],
-  3: [1440, 1350],
-  4: [1440, 1530],
-  5: [1530, 1440],
+  100: [1440, 1440],
+  200: [1440, 1530],
+  300: [1350, 1440],
+  500: [1440, 1350],
+  600: [1530, 1440],
+  1000: [1440, 1620],
 };
 
 export function rotationForDiceValue(value) {
@@ -50,13 +53,13 @@ export function resetScores(teams) {
 
 // thiefIndex is the team that drew the effect and gains points; victimIndex
 // is the Host-chosen team that loses them, capped by the victim's own score
-// (GAMEPLAY.md: "Nếu đội bị cướp có ít hơn 5 điểm → lấy hết").
+// ("Nếu đội bị cướp có ít hơn 500 điểm → lấy hết").
 export function stealUpToFive(teams, thiefIndex, victimIndex) {
   const thief = teams[thiefIndex];
   const victim = teams[victimIndex];
   if (!thief || !victim || thiefIndex === victimIndex) return cloneTeams(teams);
 
-  const amount = Math.min(5, Math.max(0, victim.score));
+  const amount = Math.min(500, Math.max(0, victim.score));
   return teams.map((team, index) => {
     if (index === thiefIndex) return { ...team, score: team.score + amount };
     if (index === victimIndex) return { ...team, score: team.score - amount };
