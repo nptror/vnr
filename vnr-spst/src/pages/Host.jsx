@@ -561,7 +561,7 @@ export default function Host() {
     let nextTeams = tms;
     if (effect.type === "points" || effect.type === "dice_subtract") {
       patch.eff_body_buttons = "dice";
-      // show_dice is NOT set here — the modal only opens when rollDice() runs
+      patch.show_dice = true; // Show dice modal immediately when drawn
     } else if (effect.type === "lose_all") {
       nextTeams = loseAllScore(tms, winnerIdx);
       patch.effect_result = `${tms[winnerIdx]?.name} mất hết điểm!`;
@@ -1002,11 +1002,11 @@ export default function Host() {
         )}
       </div>
 
-      {/* Effect Card Overlay (Hidden for dice effects to show the dice modal instead) */}
-      <div className={"overlay" + (state.show_effect ? " show" : "")}>
+      {/* Effect Card Overlay: skip for dice so dice modal handles its own display */}
+      <div className={"overlay" + (state.show_effect && state.eff_body_buttons !== "dice" ? " show" : "")}>
         {state.show_effect && state.eff_body_buttons !== "dice" && (
-          <div className="eff-card">
-            <div className="eff-eyebrow">
+          <div className="effect-card">
+            <div className="eff-target">
               Đội {teams[state.effect_team_idx]?.name} bốc được:
             </div>
             <div className="eff-label">
@@ -1117,7 +1117,12 @@ export default function Host() {
 
           {!state.dice_rolling && !state.dice_result_visible && (
             <div style={{ marginTop: '1rem', textAlign: 'center', fontSize: '15px', color: '#887272', fontStyle: 'italic' }}>
-              Đang chờ {teams[state.effect_team_idx]?.name} tung xúc xắc…
+              <div style={{ marginBottom: '12px' }}>
+                Đang chờ Đội {teams[state.effect_team_idx]?.name} tung xúc xắc…
+              </div>
+              <button onClick={rollDice} className="host-btn ghost" style={{ padding: '6px 12px', fontSize: '13px' }}>
+                🎲 Tung hộ
+              </button>
             </div>
           )}
 
