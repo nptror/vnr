@@ -136,6 +136,8 @@ CREATE TABLE IF NOT EXISTS game_events (
 CREATE INDEX IF NOT EXISTS idx_teams_game_id ON teams(game_id);
 CREATE INDEX IF NOT EXISTS idx_game_events_game_id ON game_events(game_id);
 CREATE INDEX IF NOT EXISTS idx_game_events_created_at ON game_events(created_at);
+-- Serves the Host's "latest N events per game" query (ORDER BY created_at DESC LIMIT n).
+CREATE INDEX IF NOT EXISTS idx_game_events_game_created ON game_events(game_id, created_at DESC);
 
 -- ============================================================
 -- AUTO UPDATE updated_at

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import {
   CAT_COLOR,
   CAT_NAME,
@@ -21,6 +21,7 @@ import {
   createGame,
   loadGame,
   subscribeToGame,
+  createCoalescedReloader,
   saveGameState,
   saveTeams,
   appendGameEvent,
@@ -150,7 +151,7 @@ const DICE_STYLE = `
   .dice-roll-btn {
     background: #7a2430; color: #fff;
     font-family: 'Noto Serif', serif;
-    font-size: 13px; font-weight: 700;
+    font-size: 20px; font-weight: 700;
     letter-spacing: 0.1em; text-transform: uppercase;
     padding: 0.75rem 2.5rem;
     border: none; border-radius: 0; cursor: pointer;
@@ -293,17 +294,23 @@ export default function Host() {
     teamsRef.current = teams;
   }, [teams]);
 
-  const reload = useCallback(async (id) => {
-    try {
-      const data = await loadGame(id);
-      setTeams(data.teams);
-      setState(data.state);
-      setEvents(data.events);
-      setLoading(false);
-    } catch (err) {
-      setError(err.message || String(err));
-    }
-  }, []);
+  // Coalesced sync: realtime notification bursts (including the Host's own
+  // writes echoing back) collapse into at most one in-flight fetch plus one
+  // trailing rerun. The event-log query is capped to the latest 100 rows.
+  const reload = useMemo(() => {
+    if (!gameId) return null;
+    return createCoalescedReloader(async () => {
+      try {
+        const data = await loadGame(gameId, { includeEvents: true });
+        setTeams(data.teams);
+        setState(data.state);
+        setEvents(data.events);
+        setLoading(false);
+      } catch (err) {
+        setError(err.message || String(err));
+      }
+    });
+  }, [gameId]);
 
   // A STALE_REVISION error means another writer (the answer-deadline
   // timeout, or a just-in-time player answer) already saved first — that's
@@ -312,12 +319,12 @@ export default function Host() {
   const handleSaveConflict = useCallback(
     (err) => {
       if (err?.code === "STALE_REVISION") {
-        reload(gameId);
+        reload?.schedule();
         return;
       }
       setError(err.message || String(err));
     },
-    [gameId, reload]
+    [reload]
   );
 
   // Bootstrap: resume or create a game.
@@ -341,7 +348,6 @@ export default function Host() {
         }
         if (!cancelled) {
           setGameId(id);
-          await reload(id);
         }
       } catch (err) {
         if (!cancelled) {
@@ -353,13 +359,21 @@ export default function Host() {
     return () => {
       cancelled = true;
     };
-  }, [reload]);
+  }, []);
 
   // Realtime subscription.
   useEffect(() => {
-    if (!gameId) return undefined;
-    return subscribeToGame(gameId, () => reload(gameId));
+    if (!gameId || !reload) return undefined;
+    return subscribeToGame(gameId, () => reload.schedule());
   }, [gameId, reload]);
+
+  // Initial (and per-gameId) fetch, plus cleanup of any pending debounced
+  // fetch when the game id changes or the page unmounts.
+  useEffect(() => {
+    if (!reload) return undefined;
+    reload.schedule();
+    return () => reload.cancel();
+  }, [reload]);
 
   // Meme drops from Play devices — ephemeral, cosmetic only.
   useEffect(() => {
@@ -377,9 +391,9 @@ export default function Host() {
       try {
         if (result.kind === "abandon") {
           const next = closeCard({ ...s, option_states: result.optionStates }, tms, result.nextSelectorIdx);
-          await saveGameState(gameId, s.revision, next);
+          await saveGameState(gameId, s.revision, next, s);
         } else {
-          await saveGameState(gameId, s.revision, { ...result.patch, revision: s.revision + 1 });
+          await saveGameState(gameId, s.revision, { ...result.patch, revision: s.revision + 1 }, s);
         }
       } catch (err) {
         handleSaveConflict(err);
@@ -388,37 +402,149 @@ export default function Host() {
     [gameId, handleSaveConflict]
   );
 
-  // Process events from connected devices.
-  useEffect(() => {
-    if (!state || !teams.length) return;
-    events.forEach((event) => {
-      if (processedEventIds.current.has(event.id)) return;
+  const rollDice = async () => {
+    const s = stateRef.current;
+    if (!s || s.phase !== "resolving_effect" || s.eff_body_buttons !== "dice") return;
+    const face = Math.floor(Math.random() * 6) + 1;
+    const score = Math.min(face, 5);
+    try {
+      await saveGameState(gameId, s.revision, {
+        ...s,
+        show_dice: true,
+        dice_rolling: true,
+        dice_value: score,
+        dice_result_visible: false,
+        revision: s.revision + 1,
+      }, s);
 
-      if (event.event_type === "PLAYER_ANSWER") {
-        processedEventIds.current.add(event.id);
-        const s = stateRef.current;
-        if (!s || s.phase !== "answering") return;
-        const { cardNum, revision, optionIdx } = event.payload || {};
-        if (cardNum !== s.active_card_num) return;
-        if (revision !== s.revision) return;
-        if (event.created_by !== s.answering_team_key) return;
-        applyAnswer(optionIdx);
-      } else if (event.event_type === "PLAYER_ROLL_DICE") {
-        processedEventIds.current.add(event.id);
-        const s = stateRef.current;
-        if (!s || s.phase !== "resolving_effect" || s.eff_body_buttons !== "dice") return;
-        if (s.dice_rolling) return; // Prevent duplicate rolls while animation is running
-        const { revision } = event.payload || {};
-        if (revision !== s.revision) return;
-        const effectTeamKey = teamsRef.current[s.effect_team_idx]?.team_key;
-        if (event.created_by !== effectTeamKey) return;
-        
-        // Optimistically block subsequent duplicate events in this loop
-        stateRef.current = { ...s, show_dice: true, dice_rolling: true };
-        
-        rollDice();
+      // Optimistically update locally so animation starts and we don't rely on network speed
+      stateRef.current = {
+        ...s,
+        show_dice: true,
+        dice_rolling: true,
+        dice_value: score,
+        dice_result_visible: false,
+        revision: s.revision + 1,
+      };
+    } catch (err) {
+      handleSaveConflict(err);
+      return;
+    }
+
+    setTimeout(async () => {
+      try {
+        // Fetch fresh state to guarantee we have the correct revision, preventing 406 Conflicts
+        const { state: freshState } = await loadGame(gameId);
+        if (freshState && freshState.dice_rolling) {
+          await saveGameState(gameId, freshState.revision, {
+            ...freshState,
+            dice_rolling: false,
+            dice_result_visible: true,
+            revision: freshState.revision + 1,
+          }, freshState);
+        }
+      } catch (err) {
+        console.error("Failed to finish dice roll", err);
       }
-    });
+    }, 1500);
+  };
+
+  const resolveSteal = async (targetIdx) => {
+    const s = stateRef.current;
+    const tms = teamsRef.current;
+    if (!s) return;
+    const fromIdx = s.effect_team_idx;
+    const amount = Math.min(5, Math.max(0, tms[targetIdx]?.score ?? 0));
+    const nextTeams = stealUpToFive(tms, fromIdx, targetIdx);
+    try {
+      await saveTeams(gameId, nextTeams);
+      await saveGameState(gameId, s.revision, {
+        ...s,
+        effect_result: `${tms[fromIdx]?.name} cướp ${amount} điểm từ ${tms[targetIdx]?.name}!`,
+        show_eff_continue: true,
+        eff_body_buttons: null,
+        revision: s.revision + 1,
+      }, s);
+    } catch (err) {
+      handleSaveConflict(err);
+    }
+  };
+
+  const resolveSwap = async (targetIdx) => {
+    const s = stateRef.current;
+    const tms = teamsRef.current;
+    if (!s) return;
+    const fromIdx = s.effect_team_idx;
+    const nextTeams = swapScores(tms, fromIdx, targetIdx);
+    try {
+      await saveTeams(gameId, nextTeams);
+      await saveGameState(gameId, s.revision, {
+        ...s,
+        effect_result: `${tms[fromIdx]?.name} đã đổi điểm với ${tms[targetIdx]?.name}!`,
+        show_eff_continue: true,
+        eff_body_buttons: null,
+        revision: s.revision + 1,
+      }, s);
+    } catch (err) {
+      handleSaveConflict(err);
+    }
+  };
+
+  // Process events from connected devices sequentially — awaiting each
+  // handler stops two rapid submissions from racing on the same revision.
+  useEffect(() => {
+    if (!state || !teams.length) return undefined;
+    let disposed = false;
+    (async () => {
+      for (const event of events) {
+        if (disposed) return;
+        if (processedEventIds.current.has(event.id)) continue;
+
+        if (event.event_type === "PLAYER_ANSWER") {
+          processedEventIds.current.add(event.id);
+          const s = stateRef.current;
+          if (!s || s.phase !== "answering") continue;
+          const { cardNum, revision, optionIdx } = event.payload || {};
+          if (cardNum !== s.active_card_num) continue;
+          if (revision !== s.revision) continue;
+          if (event.created_by !== s.answering_team_key) continue;
+          await applyAnswer(optionIdx);
+        } else if (event.event_type === "PLAYER_ROLL_DICE") {
+          processedEventIds.current.add(event.id);
+          const s = stateRef.current;
+          if (!s || s.phase !== "resolving_effect" || s.eff_body_buttons !== "dice") continue;
+          if (s.dice_rolling) continue; // Prevent duplicate rolls while animation is running
+          const { revision } = event.payload || {};
+          if (revision !== s.revision) continue;
+          const effectTeamKey = teamsRef.current[s.effect_team_idx]?.team_key;
+          if (event.created_by !== effectTeamKey) continue;
+
+          // Optimistically block subsequent duplicate events in this loop
+          stateRef.current = { ...s, show_dice: true, dice_rolling: true };
+
+          await rollDice();
+        } else if (event.event_type === "PLAYER_EFFECT_TARGET") {
+          processedEventIds.current.add(event.id);
+          const s = stateRef.current;
+          if (!s || s.phase !== "resolving_effect") continue;
+          if (s.eff_body_buttons !== "steal" && s.eff_body_buttons !== "swap") continue;
+          if (s.show_eff_continue) continue; // Already resolved
+          const { revision, targetIdx } = event.payload || {};
+          if (revision !== s.revision) continue;
+          const effectTeamKey = teamsRef.current[s.effect_team_idx]?.team_key;
+          if (event.created_by !== effectTeamKey) continue;
+
+          // Optimistically block duplicates
+          stateRef.current = { ...s, show_eff_continue: true };
+
+          if (s.eff_body_buttons === "steal") await resolveSteal(targetIdx);
+          if (s.eff_body_buttons === "swap") await resolveSwap(targetIdx);
+        }
+      }
+    })();
+    return () => {
+      disposed = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events]);
 
@@ -439,9 +565,9 @@ export default function Host() {
       try {
         if (result.kind === "abandon") {
           const next = closeCard(s, tms, result.nextSelectorIdx);
-          await saveGameState(gameId, s.revision, next);
+          await saveGameState(gameId, s.revision, next, s);
         } else {
-          await saveGameState(gameId, s.revision, { ...result.patch, revision: s.revision + 1 });
+          await saveGameState(gameId, s.revision, { ...result.patch, revision: s.revision + 1 }, s);
         }
       } catch (err) {
         handleSaveConflict(err);
@@ -498,7 +624,7 @@ export default function Host() {
         show_explain: false,
         deadline_at: computeDeadlineAt(),
         revision: s.revision + 1,
-      });
+      }, s);
       await appendGameEvent(gameId, "QUESTION_OPEN", { cardNum: num }, "host");
     } catch (err) {
       handleSaveConflict(err);
@@ -578,44 +704,10 @@ export default function Host() {
 
     try {
       if (nextTeams !== tms) await saveTeams(gameId, nextTeams);
-      await saveGameState(gameId, s.revision, patch);
+      await saveGameState(gameId, s.revision, patch, s);
     } catch (err) {
       handleSaveConflict(err);
     }
-  };
-
-  const rollDice = async () => {
-    const s = stateRef.current;
-    if (!s || s.phase !== "resolving_effect" || s.eff_body_buttons !== "dice") return;
-    const face = Math.floor(Math.random() * 6) + 1;
-    const score = Math.min(face, 5);
-    try {
-      await saveGameState(gameId, s.revision, {
-        ...s,
-        show_dice: true,
-        dice_rolling: true,
-        dice_value: score,
-        dice_result_visible: false,
-        revision: s.revision + 1,
-      });
-    } catch (err) {
-      handleSaveConflict(err);
-      return;
-    }
-    setTimeout(async () => {
-      const latest = stateRef.current;
-      if (!latest || !latest.dice_rolling) return;
-      try {
-        await saveGameState(gameId, latest.revision, {
-          ...latest,
-          dice_rolling: false,
-          dice_result_visible: true,
-          revision: latest.revision + 1,
-        });
-      } catch (err) {
-        handleSaveConflict(err);
-      }
-    }, 1500);
   };
 
   const confirmAndContinueDice = useCallback(async () => {
@@ -633,52 +725,11 @@ export default function Host() {
     
     try {
       await saveTeams(gameId, nextTeams);
-      await saveGameState(gameId, s.revision, nextState);
+      await saveGameState(gameId, s.revision, nextState, s);
     } catch (err) {
       handleSaveConflict(err);
     }
   }, [gameId, handleSaveConflict]);
-
-  const resolveSteal = async (targetIdx) => {
-    const s = stateRef.current;
-    const tms = teamsRef.current;
-    if (!s) return;
-    const fromIdx = s.effect_team_idx;
-    const amount = Math.min(5, Math.max(0, tms[targetIdx]?.score ?? 0));
-    const nextTeams = stealUpToFive(tms, fromIdx, targetIdx);
-    try {
-      await saveTeams(gameId, nextTeams);
-      await saveGameState(gameId, s.revision, {
-        ...s,
-        effect_result: `${tms[fromIdx]?.name} cướp ${amount} điểm từ ${tms[targetIdx]?.name}!`,
-        show_eff_continue: true,
-        eff_body_buttons: null,
-        revision: s.revision + 1,
-      });
-    } catch (err) {
-      handleSaveConflict(err);
-    }
-  };
-
-  const resolveSwap = async (targetIdx) => {
-    const s = stateRef.current;
-    const tms = teamsRef.current;
-    if (!s) return;
-    const fromIdx = s.effect_team_idx;
-    const nextTeams = swapScores(tms, fromIdx, targetIdx);
-    try {
-      await saveTeams(gameId, nextTeams);
-      await saveGameState(gameId, s.revision, {
-        ...s,
-        effect_result: `${tms[fromIdx]?.name} đã đổi điểm với ${tms[targetIdx]?.name}!`,
-        show_eff_continue: true,
-        eff_body_buttons: null,
-        revision: s.revision + 1,
-      });
-    } catch (err) {
-      handleSaveConflict(err);
-    }
-  };
 
   // Winning team keeps the right to select the next card.
   const continueAfterEffect = async () => {
@@ -687,7 +738,7 @@ export default function Host() {
     if (!s) return;
     const next = closeCard(s, tms, s.effect_team_idx);
     try {
-      await saveGameState(gameId, s.revision, next);
+      await saveGameState(gameId, s.revision, next, s);
     } catch (err) {
       handleSaveConflict(err);
     }
@@ -706,7 +757,7 @@ export default function Host() {
         winner_name: ranked[0]?.name ?? "",
         rank_list: ranked,
         revision: s.revision + 1,
-      });
+      }, s);
       await setGameStatus(gameId, "finished");
     } catch (err) {
       handleSaveConflict(err);
@@ -724,7 +775,7 @@ export default function Host() {
         ...s,
         show_winner: false,
         revision: s.revision + 1,
-      });
+      }, s);
     } catch (err) {
       handleSaveConflict(err);
     }
@@ -779,7 +830,7 @@ export default function Host() {
         winner_name: null,
         rank_list: [],
         revision: s.revision + 1,
-      });
+      }, s);
       await setGameStatus(gameId, "playing");
     } catch (err) {
       handleSaveConflict(err);
@@ -811,7 +862,7 @@ export default function Host() {
               type="button"
               onClick={() => {
                 setError(null);
-                if (gameId) reload(gameId);
+                if (gameId) reload?.schedule();
               }}
               style={{ marginTop: 12 }}
             >
@@ -1014,36 +1065,9 @@ export default function Host() {
             </div>
             <div className="eff-desc">{state.effect_desc}</div>
             <div className="eff-body">
-              {state.eff_body_buttons === "steal" && !state.show_eff_continue && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "8px", width: "100%" }}>
-                  {teams.map(
-                    (t, i) =>
-                      i !== state.effect_team_idx && (
-                        <button
-                          key={t.team_key}
-                          style={{ background: t.color, borderColor: t.color, padding: "8px 6px", fontSize: "13px" }}
-                          onClick={() => resolveSteal(i)}
-                        >
-                          Cướp từ {t.name} ({t.score}đ)
-                        </button>
-                      )
-                  )}
-                </div>
-              )}
-              {state.eff_body_buttons === "swap" && !state.show_eff_continue && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "8px", width: "100%" }}>
-                  {teams.map(
-                    (t, i) =>
-                      i !== state.effect_team_idx && (
-                        <button
-                          key={t.team_key}
-                          style={{ background: t.color, borderColor: t.color, padding: "8px 6px", fontSize: "13px" }}
-                          onClick={() => resolveSwap(i)}
-                        >
-                          Đổi với {t.name} ({t.score}đ)
-                        </button>
-                      )
-                  )}
+              {(state.eff_body_buttons === "steal" || state.eff_body_buttons === "swap") && !state.show_eff_continue && (
+                <div style={{ marginTop: '1rem', fontStyle: 'italic', color: '#887272', fontSize: '20px' }}>
+                  Đang chờ Đội {teams[state.effect_team_idx]?.name} chọn đội mục tiêu trên điện thoại…
                 </div>
               )}
               {state.effect_result && <div style={{ marginTop: 12, fontWeight: 600 }}>{state.effect_result}</div>}
@@ -1089,14 +1113,14 @@ export default function Host() {
         <div className="dice-modal" style={{ position: "relative" }}>
           
           <div style={{ textAlign: 'center', marginBottom: '2rem', borderBottom: '0.5px solid #887272', paddingBottom: '1rem', width: '100%' }}>
-            <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#554243', marginBottom: '1rem' }}>
+            <div style={{ fontSize: '20px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#554243', marginBottom: '1rem' }}>
               Gieo Xúc Xắc — {teams[state.effect_team_idx]?.name ?? ""}
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#5c0c1c', marginBottom: '4px' }}>
-              <span style={{ fontSize: '28px', marginRight: '8px' }}>{state.effect_icon}</span>
+            <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#5c0c1c', marginBottom: '4px' }}>
+              <span style={{ fontSize: '40px', marginRight: '8px' }}>{state.effect_icon}</span>
               {state.effect_label}
             </div>
-            <div style={{ fontSize: '14px', color: '#555' }}>
+            <div style={{ fontSize: '22px', color: '#555' }}>
               {state.effect_desc}
             </div>
           </div>
@@ -1116,28 +1140,38 @@ export default function Host() {
           </div>
 
           {!state.dice_rolling && !state.dice_result_visible && (
-            <div style={{ marginTop: '1rem', textAlign: 'center', fontSize: '15px', color: '#887272', fontStyle: 'italic' }}>
+            <div style={{ marginTop: '1rem', textAlign: 'center', fontSize: '22px', color: '#887272', fontStyle: 'italic' }}>
               <div style={{ marginBottom: '12px' }}>
                 Đang chờ Đội {teams[state.effect_team_idx]?.name} tung xúc xắc…
               </div>
-              <button onClick={rollDice} className="host-btn ghost" style={{ padding: '6px 12px', fontSize: '13px' }}>
-                🎲 Tung hộ
-              </button>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                <button onClick={rollDice} className="host-btn ghost" style={{ padding: '8px 16px', fontSize: '18px' }}>
+                  🎲 Tung hộ
+                </button>
+                <button onClick={continueAfterEffect} className="host-btn ghost" style={{ padding: '8px 16px', fontSize: '18px' }}>
+                  Đóng
+                </button>
+              </div>
             </div>
           )}
 
           {state.dice_result_visible && (
             <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
               <div style={{
-                fontSize: '22px', fontWeight: 700,
+                fontSize: '32px', fontWeight: 700,
                 color: state.effect_type === 'dice_subtract' ? '#9B2335' : '#3F5D45',
                 marginBottom: '1.2rem'
               }}>
                 🎲 {state.dice_value} — {teams[state.effect_team_idx]?.name} {state.effect_type === 'dice_subtract' ? '-' : '+'}{state.dice_value} điểm!
               </div>
-              <button className="dice-roll-btn" onClick={confirmAndContinueDice}>
-                Tiếp tục
-              </button>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                <button className="dice-roll-btn" onClick={confirmAndContinueDice}>
+                  Tiếp tục
+                </button>
+                <button onClick={continueAfterEffect} className="host-btn ghost" style={{ padding: '8px 16px', fontSize: '18px' }}>
+                  Đóng
+                </button>
+              </div>
             </div>
           )}
         </div>

@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getCardByNumber } from '../game/catalog'
-import { loadGame, subscribeToGame, submitAnswerEvent, submitDiceRollEvent, sendMemeDrop } from '../game/gameRepository'
+import { loadGame, subscribeToGame, createCoalescedReloader, submitAnswerEvent, submitDiceRollEvent, submitEffectTargetEvent, sendMemeDrop } from '../game/gameRepository'
 import { isSupabaseConfigured } from '../lib/supabase'
 import MemePanel from '../components/MemePanel.jsx'
 
@@ -277,33 +277,6 @@ const PLAY_STYLE = `
     margin: 1.5rem 0;
   }
 
-  /* ── Observers ── */
-  .obs-eyebrow {
-    font-family: 'Noto Serif', serif;
-    font-size: 13px; font-weight: 700;
-    letter-spacing: 0.1em; text-transform: uppercase;
-    color: #554243;
-    margin-bottom: 1rem;
-    display: flex; align-items: center; gap: 0.5rem;
-  }
-  .obs-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
-  }
-  @media (min-width: 640px) { .obs-grid { grid-template-columns: repeat(4, 1fr); } }
-  .obs-item {
-    display: flex; align-items: center; gap: 0.5rem;
-    border: 1px solid #dbc0c1;
-    padding: 0.5rem;
-    background: #faf8ff;
-    font-size: 12px; font-weight: 500;
-  }
-  .obs-dot {
-    width: 8px; height: 8px;
-    border-radius: 9999px; flex-shrink: 0;
-  }
-
   /* ── Result overlay ── */
   .result-banner {
     margin-top: 1.5rem;
@@ -340,104 +313,6 @@ const PLAY_STYLE = `
   .play-footer-copy { font-size: 12px; color: #554243; }
 `
 
-const DICE_STYLE = `
-  .play-dice-overlay {
-    position: fixed; inset: 0; z-index: 70;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(20,16,10,0.65);
-    padding: 20px;
-  }
-  .play-dice-overlay.hidden { display: none; }
-  .play-dice-modal {
-    background: #fdfbf7;
-    border: 3px double #141b2c;
-    border-radius: 4px;
-    padding: 2.5rem;
-    max-width: 420px; width: 100%;
-    display: flex; flex-direction: column; align-items: center;
-    position: relative;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-    transform: rotate(-0.4deg);
-  }
-  .play-dice-title {
-    font-family: 'Noto Serif', serif;
-    font-size: 13px; font-weight: 700;
-    letter-spacing: 0.1em; text-transform: uppercase;
-    color: #554243;
-    margin-bottom: 2rem;
-    border-bottom: 0.5px solid #887272;
-    padding-bottom: 0.5rem;
-    width: 100%; text-align: center;
-  }
-  .play-dice-scene {
-    perspective: 1000px;
-    width: 96px; height: 96px;
-    margin-bottom: 3rem;
-    position: relative;
-  }
-  .play-dice-wrapper { width: 100%; height: 100%; position: absolute; }
-  .play-dice-cube {
-    width: 100%; height: 100%; position: absolute;
-    transform-style: preserve-3d;
-    transition: transform 1500ms ease-out;
-  }
-  .play-dice-face {
-    position: absolute;
-    width: 96px; height: 96px;
-    background-color: #faf8ff;
-    border: 2px solid #141b2c;
-    border-radius: 12px;
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'Courier New', monospace;
-    font-size: 48px; font-weight: bold;
-    color: #141b2c;
-    text-shadow: 1px 1px 0 rgba(0,0,0,0.4);
-    box-shadow: inset 0 0 15px rgba(0,0,0,0.05);
-  }
-  .play-dice-face.front  { transform: rotateY(  0deg) translateZ(48px); }
-  .play-dice-face.back   { transform: rotateY(180deg) translateZ(48px); }
-  .play-dice-face.right  { transform: rotateY( 90deg) translateZ(48px); }
-  .play-dice-face.left   { transform: rotateY(-90deg) translateZ(48px); }
-  .play-dice-face.top    { transform: rotateX( 90deg) translateZ(48px); }
-  .play-dice-face.bottom { transform: rotateX(-90deg) translateZ(48px); }
-  .play-dice-shadow {
-    position: absolute; bottom: -1.5rem; left: 50%;
-    transform: translateX(-50%);
-    width: 80px; height: 16px;
-    background: rgba(0,0,0,0.2);
-    border-radius: 50%;
-    filter: blur(4px);
-  }
-  @keyframes play-dice-bounce {
-    0%   { transform: translate(-120px,-80px) scale(0.6); }
-    20%  { transform: translate(100px,60px) scale(1.1); }
-    45%  { transform: translate(-60px,-40px) scale(0.85); }
-    70%  { transform: translate(40px,30px) scale(1.05); }
-    85%  { transform: translate(-15px,-15px) scale(0.95); }
-    100% { transform: translate(0,0) scale(1); }
-  }
-  @keyframes play-shadow-pulse {
-    0%   { transform: translateX(-50%) scale(0.6); opacity: 0.1; }
-    20%  { transform: translateX(-50%) scale(1.1); opacity: 0.05; }
-    45%  { transform: translateX(-50%) scale(0.85); opacity: 0.15; }
-    70%  { transform: translateX(-50%) scale(1.05); opacity: 0.08; }
-    85%  { transform: translateX(-50%) scale(0.95); opacity: 0.12; }
-    100% { transform: translateX(-50%) scale(1); opacity: 0.1; }
-  }
-  .play-dice-bouncing { animation: play-dice-bounce 1.5s cubic-bezier(0.25,1,0.5,1) forwards; }
-  .play-shadow-rolling { animation: play-shadow-pulse 1.5s cubic-bezier(0.25,1,0.5,1) forwards; }
-  .play-dice-result {
-    margin-top: 1.5rem; height: 2rem;
-    display: flex; align-items: center; justify-content: center;
-    gap: 0.5rem;
-    font-family: 'Noto Serif', serif;
-    transition: opacity 0.3s;
-  }
-  .play-dice-result.hidden-result { opacity: 0; }
-  .play-dice-result-num { font-size: 32px; font-weight: 700; color: #7a2430; line-height: 1; }
-  .play-dice-result-text { font-size: 18px; font-weight: 600; color: #141b2c; }
-`
-
 function formatTime(sec) {
   const s = Math.max(0, sec)
   const m = String(Math.floor(s / 60)).padStart(2, '0')
@@ -445,21 +320,56 @@ function formatTime(sec) {
   return `${m}:${r}`
 }
 
+// Owns the 1s countdown tick so the per-second re-render stays isolated to
+// this small subtree instead of the whole Play document. Parent must pass a
+// `key` that changes with deadlineAt so remounts pick up the fresh deadline.
+function TurnTimer({ deadlineAt, active }) {
+  const [timeLeft, setTimeLeft] = useState(() =>
+    active && deadlineAt
+      ? Math.max(0, Math.ceil((new Date(deadlineAt).getTime() - Date.now()) / 1000))
+      : ANSWER_SECONDS
+  )
+
+  useEffect(() => {
+    if (!active || !deadlineAt) return undefined
+    const deadline = new Date(deadlineAt).getTime()
+    const id = setInterval(() => {
+      setTimeLeft(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [deadlineAt, active])
+
+  const timerClass = timeLeft > 10 ? 'timer-normal' : timeLeft > 5 ? 'timer-warn' : 'timer-danger'
+  return <div className={`team-info-timer ${timerClass}`}>{formatTime(timeLeft)}</div>
+}
+
 function readSession() {
-  try {
-    const raw = localStorage.getItem(SESSION_KEY)
+  const parse = (raw) => {
     if (!raw) return null
-    const parsed = JSON.parse(raw)
-    if (!parsed?.gameId || !parsed?.teamKey) return null
-    return parsed
-  } catch {
-    return null
+    try {
+      const parsed = JSON.parse(raw)
+      if (!parsed?.gameId || !parsed?.teamKey) return null
+      return parsed
+    } catch {
+      return null
+    }
   }
+  const fresh = sessionStorage.getItem(SESSION_KEY)
+  if (fresh) return parse(fresh)
+  const session = parse(localStorage.getItem(SESSION_KEY))
+  if (session) {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session))
+    localStorage.removeItem(SESSION_KEY)
+  }
+  return session
 }
 
 export default function Play() {
   const navigate = useNavigate()
-  const session = readSession()
+  // Read ONCE: a fresh session object every render used to recreate `reload`,
+  // re-run the fetch effect and tear down/re-subscribe the realtime channel
+  // on every single render.
+  const [session] = useState(readSession)
 
   const [game, setGame] = useState(null)
   const [teams, setTeams] = useState([])
@@ -468,48 +378,40 @@ export default function Play() {
   const [error, setError] = useState(() => (isSupabaseConfigured ? null : 'Supabase chưa được cấu hình.'))
   const [submittedRevision, setSubmittedRevision] = useState(null)
   const [submitError, setSubmitError] = useState(null)
-  const [timeLeft, setTimeLeft] = useState(ANSWER_SECONDS)
-  const [activeMemes, setActiveMemes] = useState([])
 
   useEffect(() => {
     if (!session) navigate('/pick-team', { replace: true })
   }, [session, navigate])
 
-  const reload = useCallback(async () => {
-    if (!session) return
-    try {
-      const data = await loadGame(session.gameId)
-      setGame(data.game)
-      setTeams(data.teams)
-      setState(data.state)
-      setLoading(false)
-    } catch (err) {
-      setError(err.message || String(err))
-      setLoading(false)
-    }
+  // Coalesced sync: realtime notification bursts collapse into at most one
+  // in-flight fetch (+ one trailing rerun). Players never download the
+  // growing game_events log.
+  const reload = useMemo(() => {
+    if (!session) return null
+    return createCoalescedReloader(async () => {
+      try {
+        const data = await loadGame(session.gameId)
+        setGame(data.game)
+        setTeams(data.teams)
+        setState(data.state)
+        setLoading(false)
+      } catch (err) {
+        setError(err.message || String(err))
+        setLoading(false)
+      }
+    })
   }, [session])
 
   useEffect(() => {
-    if (!session || !isSupabaseConfigured) return
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial async fetch on mount
-    reload()
-  }, [session, reload])
+    if (!reload || !isSupabaseConfigured) return undefined
+    reload.schedule()
+    return () => reload.cancel()
+  }, [reload])
 
   useEffect(() => {
-    if (!session) return undefined
-    return subscribeToGame(session.gameId, reload)
+    if (!session || !isSupabaseConfigured || !reload) return undefined
+    return subscribeToGame(session.gameId, () => reload.schedule())
   }, [session, reload])
-
-  // Countdown display derived from the shared deadline; submittedRevision is
-  // compared directly against state.revision at render time (see alreadySubmitted).
-  useEffect(() => {
-    if (!state?.deadline_at || state.phase !== 'answering') return undefined
-    const deadline = new Date(state.deadline_at).getTime()
-    const id = setInterval(() => {
-      setTimeLeft(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)))
-    }, 1000)
-    return () => clearInterval(id)
-  }, [state?.deadline_at, state?.phase])
 
   if (!session) return null
 
@@ -533,7 +435,7 @@ export default function Play() {
               onClick={() => {
                 setError(null)
                 setLoading(true)
-                reload()
+                reload?.schedule()
               }}
               style={{ marginTop: 16 }}
             >
@@ -556,6 +458,7 @@ export default function Play() {
     !state.answer_submission_team_key
 
   const isMyEffectTurn =
+    game?.status === 'playing' &&
     state?.phase === 'resolving_effect' &&
     teams[state.effect_team_idx]?.team_key === session.teamKey
 
@@ -591,6 +494,19 @@ export default function Play() {
     }
   }
 
+  const handleEffectTarget = async (targetIdx) => {
+    try {
+      await submitEffectTargetEvent({
+        gameId: session.gameId,
+        teamKey: session.teamKey,
+        revision: state.revision,
+        targetIdx,
+      })
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   const submitErrorMessage =
     submitError && submitError.atRevision === state.revision ? submitError.message : null
 
@@ -611,8 +527,6 @@ export default function Play() {
     if (st === 'wrong') return 'wrong'
     return ''
   }
-
-  const timerClass = timeLeft > 10 ? 'timer-normal' : timeLeft > 5 ? 'timer-warn' : 'timer-danger'
 
   let resultBanner = null
   if (state.phase === 'explaining' || state.phase === 'resolving_effect') {
@@ -692,7 +606,11 @@ export default function Play() {
                 </div>
                 <div>
                   <div className="team-info-time-label">THỜI GIAN CÒN LẠI</div>
-                  <div className={`team-info-timer ${timerClass}`}>{formatTime(timeLeft)}</div>
+                  <TurnTimer
+                    key={state.deadline_at ?? 'idle'}
+                    deadlineAt={state.deadline_at}
+                    active={state.phase === 'answering'}
+                  />
                 </div>
               </div>
 
@@ -754,19 +672,6 @@ export default function Play() {
 
               <hr className="play-divider" />
 
-              <div className="obs-eyebrow">CÁC ĐƠN VỊ ĐANG THEO DÕI</div>
-              <div className="obs-grid">
-                {teams
-                  .filter((t) => t.team_key !== answeringTeam?.team_key)
-                  .slice(0, 4)
-                  .map((team) => (
-                    <div key={team.team_key} className="obs-item">
-                      <span className="obs-dot" style={{ background: team.color }} />
-                      <span>{team.name}</span>
-                    </div>
-                  ))}
-              </div>
-
               {/* Meme Panel */}
               <MemePanel onDrop={handleMemeDrop} disabled={false} teamColor={myTeam?.color} />
             </div>
@@ -794,8 +699,16 @@ export default function Play() {
             boxShadow: '0 10px 25px rgba(0,0,0,0.4)',
             border: '2px solid #5c0c1c'
           }}>
-            <h2 style={{ margin: '0 0 0.5rem 0', color: '#5c0c1c', fontSize: '28px', fontFamily: "'Noto Serif', serif" }}>ĐẾN LƯỢT ĐỘI BẠN</h2>
-            <p style={{ margin: '0 0 2rem 0', color: '#554243', fontSize: '16px' }}>Thẻ chức năng yêu cầu tung xúc xắc. Hãy bấm nút dưới đây!</p>
+            <h2 style={{ margin: '0 0 0.5rem 0', color: '#5c0c1c', fontSize: '28px', fontFamily: "'Noto Serif', serif" }}>
+              Gieo Xúc Xắc — {myTeam?.name}
+            </h2>
+            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#5c0c1c', marginBottom: '8px' }}>
+              <span style={{ fontSize: '28px', marginRight: '8px' }}>{state.effect_icon}</span>
+              {state.effect_label}
+            </div>
+            <p style={{ margin: '0 0 2rem 0', color: '#554243', fontSize: '16px' }}>
+              {state.effect_desc}
+            </p>
             <button
               onClick={handleRollDice}
               disabled={state.dice_rolling || state.dice_result_visible}
@@ -816,6 +729,51 @@ export default function Play() {
                 Đang tung... Hãy nhìn lên màn hình Host để xem kết quả!
               </p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Popup Steal/Swap for Active Team */}
+      {state?.phase === 'resolving_effect' && isMyEffectTurn && (state.eff_body_buttons === 'steal' || state.eff_body_buttons === 'swap') && !state.show_eff_continue && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 100,
+          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          animation: 'fadeIn 0.2s ease-out'
+        }}>
+          <div style={{
+            background: '#faf8ff', padding: '2.5rem 1.5rem', borderRadius: '16px',
+            textAlign: 'center', maxWidth: '400px', width: '90%',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.4)',
+            border: '2px solid #5c0c1c'
+          }}>
+            <h2 style={{ margin: '0 0 0.5rem 0', color: '#5c0c1c', fontSize: '28px', fontFamily: "'Noto Serif', serif" }}>
+              CHỌN MỤC TIÊU — {myTeam?.name}
+            </h2>
+            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#5c0c1c', marginBottom: '8px' }}>
+              <span style={{ fontSize: '28px', marginRight: '8px' }}>{state.effect_icon}</span>
+              {state.effect_label}
+            </div>
+            <p style={{ margin: '0 0 2rem 0', color: '#554243', fontSize: '16px' }}>
+              {state.effect_desc}
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px", width: "100%" }}>
+              {teams.map(
+                (t, i) =>
+                  i !== state.effect_team_idx && (
+                    <button
+                      key={t.team_key}
+                      style={{ 
+                        background: t.color, border: 'none', color: 'white', padding: "12px", 
+                        fontSize: "18px", fontWeight: "bold", borderRadius: "8px", cursor: "pointer" 
+                      }}
+                      onClick={() => handleEffectTarget(i)}
+                    >
+                      {state.eff_body_buttons === "steal" ? `Cướp từ ${t.name} (${t.score}đ)` : `Đổi với ${t.name} (${t.score}đ)`}
+                    </button>
+                  )
+              )}
+            </div>
           </div>
         </div>
       )}

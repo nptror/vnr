@@ -62,13 +62,20 @@ export async function joinGame(gameId, teamKey, teamCode) {
   return { gameId: data.game_id, teamKey: data.team_key };
 }
 
-export async function loadGame(gameId) {
+export async function loadGame(gameId, { includeEvents = false, eventLimit = 100 } = {}) {
   const client = getClient();
   const [gameResult, teamsResult, stateResult, eventsResult] = await Promise.all([
     client.from("games").select("*").eq("id", gameId).single(),
     client.from("teams").select("*").eq("game_id", gameId).order("display_order"),
     client.from("game_state").select("*").eq("game_id", gameId).single(),
-    client.from("game_events").select("*").eq("game_id", gameId).order("created_at"),
+    includeEvents
+      ? client
+          .from("game_events")
+          .select("*")
+          .eq("game_id", gameId)
+          .order("created_at", { ascending: false })
+          .limit(eventLimit)
+      : Promise.resolve({ data: [], error: null }),
   ]);
   throwOnError(gameResult.error);
   throwOnError(teamsResult.error);
@@ -78,8 +85,56 @@ export async function loadGame(gameId) {
     game: gameResult.data,
     teams: teamsResult.data,
     state: stateResult.data,
-    events: eventsResult.data,
+    events: [...(eventsResult.data ?? [])].reverse(),
   };
+}
+
+// Realtime notifications arrive in bursts (a single gameplay move can touch
+// several tables). This coalesces each burst into at most one in-flight
+// fetch, plus one trailing follow-up if new notifications arrived while the
+// fetch was running — so N rapid events cost 1–2 requests instead of N.
+export function createCoalescedReloader(fetchFn, delayMs = 150) {
+  let timer = null;
+  let inflight = false;
+  let rerunQueued = false;
+  let epoch = 0;
+
+  const run = async () => {
+    const runEpoch = epoch;
+    inflight = true;
+    try {
+      await fetchFn();
+    } finally {
+      inflight = false;
+      if (rerunQueued && runEpoch === epoch) {
+        rerunQueued = false;
+        schedule();
+      }
+    }
+  };
+
+  const schedule = () => {
+    if (inflight) {
+      rerunQueued = true;
+      return;
+    }
+    if (timer) return;
+    timer = setTimeout(() => {
+      timer = null;
+      run();
+    }, delayMs);
+  };
+
+  const cancel = () => {
+    epoch += 1;
+    rerunQueued = false;
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+
+  return { schedule, cancel };
 }
 
 export function subscribeToGame(gameId, onChange) {
@@ -94,14 +149,31 @@ export function subscribeToGame(gameId, onChange) {
   return () => client.removeChannel(channel);
 }
 
-export async function saveGameState(gameId, expectedRevision, nextState) {
-  const state = { ...nextState };
-  delete state.id;
-  delete state.game_id;
-  delete state.updated_at;
+// When baseState is provided, only the columns whose value actually differs
+// are sent — game_state rows carry large JSONB decks (card_deck/effect_deck)
+// that stay reference-identical across most moves, so this turns a ~20KB row
+// write into a sub-KB patch. Without baseState the full nextState is written.
+function buildStatePayload(nextState, baseState) {
+  if (!baseState) {
+    const full = { ...nextState };
+    delete full.id;
+    delete full.game_id;
+    delete full.updated_at;
+    return full;
+  }
+  const patch = {};
+  for (const key of Object.keys(nextState)) {
+    if (key === "id" || key === "game_id" || key === "updated_at") continue;
+    if (!Object.is(nextState[key], baseState[key])) patch[key] = nextState[key];
+  }
+  return patch;
+}
+
+export async function saveGameState(gameId, expectedRevision, nextState, baseState) {
+  const payload = buildStatePayload(nextState, baseState);
   const { data, error } = await getClient()
     .from("game_state")
-    .update(state)
+    .update(payload)
     .eq("game_id", gameId)
     .eq("revision", expectedRevision)
     .select()
@@ -161,6 +233,15 @@ export function submitDiceRollEvent({ gameId, teamKey, revision }) {
     gameId,
     "PLAYER_ROLL_DICE",
     { revision },
+    teamKey
+  );
+}
+
+export function submitEffectTargetEvent({ gameId, teamKey, revision, targetIdx }) {
+  return appendGameEvent(
+    gameId,
+    "PLAYER_EFFECT_TARGET",
+    { revision, targetIdx },
     teamKey
   );
 }

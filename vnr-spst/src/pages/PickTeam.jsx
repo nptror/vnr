@@ -82,7 +82,7 @@ export default function PickTeam() {
             if (!game) throw new Error('Không tìm thấy phòng chơi với mã PIN này.')
             // By default, the team code is equal to the team id (e.g. 'red')
             const { gameId, teamKey } = await joinGame(game.id, team.id, team.id)
-            localStorage.setItem(SESSION_KEY, JSON.stringify({ gameId, teamKey }))
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify({ gameId, teamKey }))
             navigate('/play')
         } catch (err) {
             setError(err.message || 'Không thể tham gia. Kiểm tra lại cấu hình hoặc liên hệ Host.')

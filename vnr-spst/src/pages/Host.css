@@ -40,14 +40,14 @@
 .masthead h1 {
   font-family: 'Noto Serif', serif;
   font-weight: 700;
-  font-size: 30px;
+  font-size: 42px;
   margin: 0;
   letter-spacing: 0.3px;
   color: var(--ink);
 }
 
 .masthead .sub {
-  font-size: 13px;
+  font-size: 18px;
   color: var(--maroon-dark);
   letter-spacing: 1.5px;
   text-transform: uppercase;
@@ -117,8 +117,8 @@
 
 .ncard {
   position: relative;
-  width: 68px;
-  height: 84px;
+  width: 90px;
+  height: 110px;
   border-radius: 5px;
   background: #fff;
   border: 1px solid var(--line);
@@ -141,12 +141,12 @@
 .ncard-num {
   font-family: 'Noto Serif', serif;
   font-weight: 700;
-  font-size: 20px;
+  font-size: 32px;
   color: var(--ink);
 }
 
 .ncard-cat {
-  font-size: 9px;
+  font-size: 14px;
   color: #6b6455;
   margin-top: 2px;
   line-height: 1.2;
@@ -165,7 +165,7 @@
 }
 
 .ncard-done {
-  font-size: 20px;
+  font-size: 32px;
   color: var(--forest);
   font-weight: 700;
 }
@@ -185,7 +185,7 @@
 
 .teams h2 {
   font-family: 'Noto Serif', serif;
-  font-size: 16px;
+  font-size: 24px;
   margin: 0 0 12px;
   border-bottom: 1px solid var(--line);
   padding-bottom: 8px;
@@ -221,15 +221,15 @@
   border: none;
   background: transparent;
   font-weight: 600;
-  font-size: 14px;
-  width: 130px;
+  font-size: 22px;
+  width: 180px;
   font-family: 'Noto Sans', sans-serif;
   color: var(--ink);
 }
 
 .team-code {
   font-family: ui-monospace, Consolas, monospace;
-  font-size: 12px;
+  font-size: 18px;
   font-weight: 700;
   letter-spacing: 0.05em;
   color: var(--maroon-dark);
@@ -257,7 +257,7 @@
   margin-left: auto;
   font-family: 'Noto Serif', serif;
   font-weight: 700;
-  font-size: 18px;
+  font-size: 26px;
 }
 
 .controls {
@@ -280,14 +280,14 @@
 }
 
 .turn-label {
-  font-size: 13px;
+  font-size: 18px;
   color: #6b6455;
 }
 
 .turn-name {
   font-family: 'Noto Serif', serif;
   font-weight: 700;
-  font-size: 18px;
+  font-size: 26px;
 }
 
 .progress {
@@ -298,7 +298,7 @@
 .host-btn {
   font-family: 'Noto Sans', sans-serif;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 20px;
   cursor: pointer;
   border-radius: 4px;
   border: 1px solid var(--maroon);
@@ -344,9 +344,9 @@
 .card {
   background: var(--paper);
   width: 100%;
-  max-width: 580px;
+  max-width: 800px;
   border-radius: 4px;
-  padding: 26px 28px;
+  padding: 32px 36px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
   transform: rotate(-0.6deg);
   border-top: 6px solid var(--maroon);
@@ -381,7 +381,7 @@
 
 .card-q {
   font-family: 'Noto Serif', serif;
-  font-size: 19px;
+  font-size: 28px;
   font-weight: 600;
   line-height: 1.5;
   margin-bottom: 12px;
@@ -406,12 +406,12 @@
   background: #fff;
   color: var(--ink);
   border: 1px solid var(--line);
-  padding: 12px 14px;
+  padding: 16px 20px;
   font-weight: 600;
   border-radius: 4px;
   line-height: 1.4;
   font-family: 'Noto Sans', sans-serif;
-  font-size: 14px;
+  font-size: 20px;
   cursor: pointer;
 }
 
@@ -437,7 +437,7 @@
 }
 
 .card-a {
-  font-size: 14px;
+  font-size: 20px;
   line-height: 1.6;
   background: #fff;
   border-radius: 4px;
@@ -470,7 +470,7 @@
 
 .eff-target {
   font-family: 'Noto Serif', serif;
-  font-size: 13px;
+  font-size: 20px;
   color: var(--maroon-dark);
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -480,12 +480,12 @@
 .eff-label {
   font-family: 'Noto Serif', serif;
   font-weight: 700;
-  font-size: 21px;
+  font-size: 32px;
   margin-bottom: 8px;
 }
 
 .eff-desc {
-  font-size: 14px;
+  font-size: 22px;
   color: #6b6455;
   margin-bottom: 18px;
   line-height: 1.5;
@@ -502,7 +502,7 @@
   width: 100%;
   font-family: 'Noto Sans', sans-serif;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 22px;
   cursor: pointer;
   border-radius: 4px;
   border: 1px solid var(--maroon);
@@ -518,7 +518,7 @@
 .eff-result {
   font-family: 'Noto Serif', serif;
   font-weight: 700;
-  font-size: 18px;
+  font-size: 26px;
   padding: 12px 0;
   color: var(--maroon-dark);
 }
