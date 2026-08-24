@@ -105,6 +105,10 @@ ALTER TABLE game_state ADD COLUMN IF NOT EXISTS revision INT NOT NULL DEFAULT 0;
 
 ALTER TABLE teams ADD COLUMN IF NOT EXISTS team_code TEXT NOT NULL DEFAULT '';
 UPDATE teams SET team_code = team_key WHERE team_code = '';
+
+-- Set the moment a representative claims this team on /pick-team. NULL = still
+-- open. Used to grey out already-taken teams and to block a second claim.
+ALTER TABLE teams ADD COLUMN IF NOT EXISTS joined_at TIMESTAMPTZ;
 DO $$
 BEGIN
   IF NOT EXISTS (

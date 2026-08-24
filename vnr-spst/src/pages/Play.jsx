@@ -358,8 +358,10 @@ function readSession() {
   if (fresh) return parse(fresh)
   const session = parse(localStorage.getItem(SESSION_KEY))
   if (session) {
+    // Copy into sessionStorage for this tab, but deliberately keep the
+    // localStorage copy (don't remove it) — it's the durable fallback that
+    // lets this device recover again if the tab gets killed a second time.
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(session))
-    localStorage.removeItem(SESSION_KEY)
   }
   return session
 }

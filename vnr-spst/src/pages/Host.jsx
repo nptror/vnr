@@ -263,7 +263,7 @@ function computeTimeoutAdvance(state, teams) {
 // after 4s, and a manual close button is available meanwhile. The parent
 // renders it with `key={state.revision}`, so the remount that happens when
 // the team's choice is saved brings it back showing the result.
-function EffectCardOverlay({ state, teamName, onContinue }) {
+function EffectCardOverlay({ state, teamName, teams, onContinue, onPickTarget }) {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
@@ -273,6 +273,9 @@ function EffectCardOverlay({ state, teamName, onContinue }) {
   }, [state.show_eff_continue]);
 
   if (dismissed) return null;
+
+  const needsTarget =
+    (state.eff_body_buttons === "steal" || state.eff_body_buttons === "swap") && !state.show_eff_continue;
 
   return (
     <div className="overlay show">
@@ -295,10 +298,30 @@ function EffectCardOverlay({ state, teamName, onContinue }) {
         </div>
         <div className="eff-desc">{state.effect_desc}</div>
         <div className="eff-body">
-          {(state.eff_body_buttons === "steal" || state.eff_body_buttons === "swap") && !state.show_eff_continue && (
-            <div style={{ marginTop: '1rem', fontStyle: 'italic', color: '#887272', fontSize: '20px' }}>
-              Đang chờ Đội {teamName} chọn đội mục tiêu trên điện thoại…
-            </div>
+          {needsTarget && (
+            <>
+              <div style={{ marginTop: '1rem', fontStyle: 'italic', color: '#887272', fontSize: '16px' }}>
+                Đang chờ Đội {teamName} chọn đội mục tiêu trên điện thoại — hoặc chọn hộ nếu đội không có thiết bị:
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px', width: '100%', marginTop: '0.75rem' }}>
+                {teams.map(
+                  (t, i) =>
+                    i !== state.effect_team_idx && (
+                      <button
+                        key={t.team_key}
+                        type="button"
+                        style={{
+                          background: t.color, border: 'none', color: '#fff', padding: '10px',
+                          fontSize: '15px', fontWeight: 'bold', borderRadius: '6px', cursor: 'pointer',
+                        }}
+                        onClick={() => onPickTarget(i)}
+                      >
+                        {state.eff_body_buttons === "steal" ? `Cướp hộ từ ${t.name} (${t.score}đ)` : `Đổi hộ với ${t.name} (${t.score}đ)`}
+                      </button>
+                    )
+                )}
+              </div>
+            </>
           )}
           {state.effect_result && <div style={{ marginTop: 12, fontWeight: 600 }}>{state.effect_result}</div>}
         </div>
@@ -1170,8 +1193,12 @@ export default function Host() {
         <EffectCardOverlay
           key={state.revision}
           state={state}
+          teams={teams}
           teamName={teams[state.effect_team_idx]?.name}
           onContinue={continueAfterEffect}
+          onPickTarget={(targetIdx) =>
+            state.eff_body_buttons === "steal" ? resolveSteal(targetIdx) : resolveSwap(targetIdx)
+          }
         />
       )}
 

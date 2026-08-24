@@ -49,17 +49,47 @@ export async function findGameByPin(pin) {
   return data;
 }
 
-export async function joinGame(gameId, teamKey, teamCode) {
+export async function fetchTeams(gameId) {
   const { data, error } = await getClient()
     .from("teams")
+    .select("*")
+    .eq("game_id", gameId)
+    .order("display_order");
+  throwOnError(error);
+  return data;
+}
+
+// Conditional UPDATE (`joined_at IS NULL`) makes the claim atomic: if two
+// devices race for the same team, only one UPDATE matches a row and returns
+// data — the loser falls through to the existence check below to report why.
+export async function joinGame(gameId, teamKey, teamCode) {
+  const client = getClient();
+  const { data, error } = await client
+    .from("teams")
+    .update({ joined_at: new Date().toISOString() })
+    .eq("game_id", gameId)
+    .eq("team_key", teamKey)
+    .eq("team_code", teamCode)
+    .is("joined_at", null)
     .select("game_id, team_key")
+    .maybeSingle();
+  throwOnError(error);
+  if (data) return { gameId: data.game_id, teamKey: data.team_key };
+
+  const { data: existing, error: checkError } = await client
+    .from("teams")
+    .select("joined_at")
     .eq("game_id", gameId)
     .eq("team_key", teamKey)
     .eq("team_code", teamCode)
     .maybeSingle();
-  throwOnError(error);
-  if (!data) throw new Error("Invalid game, team, or team code.");
-  return { gameId: data.game_id, teamKey: data.team_key };
+  throwOnError(checkError);
+  if (existing?.joined_at) {
+    const err = new Error("Đội này đã có người tham gia.");
+    err.code = "TEAM_TAKEN";
+    throw err;
+  }
+  throw new Error("Invalid game, team, or team code.");
 }
 
 export async function loadGame(gameId, { includeEvents = false, eventLimit = 100 } = {}) {

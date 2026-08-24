@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { findGameByPin, joinGame } from '../game/gameRepository'
+import { findGameByPin, joinGame, fetchTeams, subscribeToGame, createCoalescedReloader } from '../game/gameRepository'
 import { isSupabaseConfigured } from '../lib/supabase'
 
 const SESSION_KEY = 'vnr_game_session'
@@ -69,12 +69,56 @@ export default function PickTeam() {
     const [pin] = useState(() => localStorage.getItem('vnr_game_pin') || '1986')
     const [error, setError] = useState(null)
     const [joining, setJoining] = useState(false)
+    const [gameId, setGameId] = useState(null)
+    const [dbTeams, setDbTeams] = useState([])
+
+    // Find the active room for this PIN once, then keep polling/subscribing
+    // for its team rows so "already taken" greys out live as others join —
+    // the grid itself still renders from the local TEAMS metadata below, this
+    // only tracks which team_key already has joined_at set.
+    useEffect(() => {
+        if (!isSupabaseConfigured) return undefined
+        let cancelled = false
+        findGameByPin(pin.trim())
+            .then((g) => { if (!cancelled) setGameId(g ? g.id : null) })
+            .catch(() => { if (!cancelled) setGameId(null) })
+        return () => { cancelled = true }
+    }, [pin])
+
+    const reload = useMemo(() => {
+        if (!gameId) return null
+        return createCoalescedReloader(async () => {
+            try {
+                setDbTeams(await fetchTeams(gameId))
+            } catch {
+                // Transient error — the next scheduled/subscribed reload retries.
+            }
+        })
+    }, [gameId])
+
+    useEffect(() => {
+        if (!reload || !isSupabaseConfigured) return undefined
+        reload.schedule()
+        const id = setInterval(() => reload.schedule(), 5000)
+        return () => { clearInterval(id); reload.cancel() }
+    }, [reload])
+
+    useEffect(() => {
+        if (!gameId || !isSupabaseConfigured || !reload) return undefined
+        return subscribeToGame(gameId, () => reload.schedule())
+    }, [gameId, reload])
+
+    const takenKeys = useMemo(
+        () => new Set(dbTeams.filter((t) => t.joined_at).map((t) => t.team_key)),
+        [dbTeams]
+    )
 
     const handleDirectJoin = async (team) => {
         if (!isSupabaseConfigured) {
             setError('Supabase chưa được cấu hình.')
             return
         }
+        if (takenKeys.has(team.id)) return
         setJoining(true)
         setError(null)
         try {
@@ -83,11 +127,19 @@ export default function PickTeam() {
                 throw new Error(`Không tìm thấy phòng với mã ${pin.trim()}. Người điều phối cần mở /host (một lần) để tạo phòng trước — sau đó bấm lại đội.`)
             }
             // By default, the team code is equal to the team id (e.g. 'red')
-            const { gameId, teamKey } = await joinGame(game.id, team.id, team.id)
-            sessionStorage.setItem(SESSION_KEY, JSON.stringify({ gameId, teamKey }))
+            const { gameId: joinedGameId, teamKey } = await joinGame(game.id, team.id, team.id)
+            const sessionPayload = JSON.stringify({ gameId: joinedGameId, teamKey })
+            sessionStorage.setItem(SESSION_KEY, sessionPayload)
+            // Also persist to localStorage (survives a closed/killed tab, unlike
+            // sessionStorage) so this device can recover its own team on /play
+            // instead of finding it greyed out as "already taken" here.
+            localStorage.setItem(SESSION_KEY, sessionPayload)
             navigate('/play')
         } catch (err) {
             setError(err.message || 'Không thể tham gia. Kiểm tra lại cấu hình hoặc liên hệ Host.')
+            // Someone else may have just taken this team (TEAM_TAKEN) — refresh
+            // immediately instead of waiting for the next poll/realtime tick.
+            reload?.schedule()
         } finally {
             setJoining(false)
         }
@@ -296,34 +348,42 @@ export default function PickTeam() {
                     )}
 
                     <div className="pt-grid">
-                        {TEAMS.map((team) => (
-                            <article
-                                key={team.id}
-                                className="pt-card"
-                                style={{ borderTopColor: team.color, transform: `rotate(${team.rotate})` }}
-                            >
-                                <div className="pt-card-body">
-                                    <span
-                                        className="material-symbols-outlined pt-card-icon"
-                                        style={{ color: team.color, fontVariationSettings: "'FILL' 1" }}
-                                    >
-                                        {team.icon}
-                                    </span>
-                                    <h2 className="pt-card-name">{team.name}</h2>
-                                    <hr className="pt-card-divider" />
-                                    <p className="pt-card-desc">{team.desc}</p>
-                                </div>
-
-                                <button
-                                    className="pt-join-btn"
-                                    style={{ backgroundColor: team.color, borderColor: team.color }}
-                                    disabled={!isSupabaseConfigured || joining}
-                                    onClick={() => handleDirectJoin(team)}
+                        {TEAMS.map((team) => {
+                            const taken = takenKeys.has(team.id)
+                            return (
+                                <article
+                                    key={team.id}
+                                    className={"pt-card" + (taken ? " pt-card-taken" : "")}
+                                    style={{
+                                        borderTopColor: team.color,
+                                        transform: `rotate(${team.rotate})`,
+                                        opacity: taken ? 0.45 : 1,
+                                        filter: taken ? 'grayscale(1)' : 'none',
+                                    }}
                                 >
-                                    {joining ? 'ĐANG VÀO...' : 'THAM GIA'}
-                                </button>
-                            </article>
-                        ))}
+                                    <div className="pt-card-body">
+                                        <span
+                                            className="material-symbols-outlined pt-card-icon"
+                                            style={{ color: team.color, fontVariationSettings: "'FILL' 1" }}
+                                        >
+                                            {team.icon}
+                                        </span>
+                                        <h2 className="pt-card-name">{team.name}</h2>
+                                        <hr className="pt-card-divider" />
+                                        <p className="pt-card-desc">{team.desc}</p>
+                                    </div>
+
+                                    <button
+                                        className="pt-join-btn"
+                                        style={{ backgroundColor: team.color, borderColor: team.color, cursor: taken ? 'not-allowed' : 'pointer' }}
+                                        disabled={!isSupabaseConfigured || joining || taken}
+                                        onClick={() => handleDirectJoin(team)}
+                                    >
+                                        {taken ? 'ĐÃ CÓ NGƯỜI CHỌN' : joining ? 'ĐANG VÀO...' : 'THAM GIA'}
+                                    </button>
+                                </article>
+                            )
+                        })}
                     </div>
                 </main>
 
