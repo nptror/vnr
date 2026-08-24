@@ -226,9 +226,7 @@ export default function EffectCard({
 
                   {needsTarget && (
                     <>
-                      <div className="er-hint">
-                        Đang chờ {teamName} chọn mục tiêu trên điện thoại — hoặc chọn hộ:
-                      </div>
+
                       <div className="er-targets">
                         {teams.map(
                           (t, i) =>
@@ -240,8 +238,8 @@ export default function EffectCard({
                                 onClick={() => onPickTarget(i)}
                               >
                                 {state.eff_body_buttons === "steal"
-                                  ? `Cướp hộ từ ${t.name} (${t.score}đ)`
-                                  : `Đổi hộ với ${t.name} (${t.score}đ)`}
+                                  ? `Cướp ${t.name} (${t.score}đ)`
+                                  : `Đổi ${t.name} (${t.score}đ)`}
                               </button>
                             )
                         )}
@@ -472,12 +470,13 @@ const STYLE = `
     text-align: center;
   }
   .er-targets {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%;
+    display: flex; flex-wrap: wrap; gap: 8px; width: 100%;
+    justify-content: center;
   }
   .er-targets button {
-    border: none; color: #fff; padding: 9px 8px;
-    font-size: 13px; font-weight: bold; border-radius: 6px; cursor: pointer;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    border: none; color: #fff; padding: 5px 10px;
+    font-size: 15px; font-weight: bold; border-radius: 6px; cursor: pointer;
+    white-space: nowrap;
   }
   .er-result {
     font-weight: 600; font-size: 19px; text-align: center; color: #141b2c;
