@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS game_state (
   effect_result       TEXT,
   show_eff_continue   BOOLEAN NOT NULL DEFAULT false,
   eff_body_buttons    TEXT,                                   -- 'dice'|'steal'|'swap'|NULL
+  effect_revealed     BOOLEAN NOT NULL DEFAULT false,         -- false = animation lật bài chưa xong, Play chưa được thao tác
 
   -- Xúc xắc
   show_dice           BOOLEAN NOT NULL DEFAULT false,
@@ -102,6 +103,7 @@ ALTER TABLE game_state ADD COLUMN IF NOT EXISTS deadline_at TIMESTAMPTZ;
 ALTER TABLE game_state ADD COLUMN IF NOT EXISTS answering_team_key TEXT;
 ALTER TABLE game_state ADD COLUMN IF NOT EXISTS answer_submission_team_key TEXT;
 ALTER TABLE game_state ADD COLUMN IF NOT EXISTS revision INT NOT NULL DEFAULT 0;
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS effect_revealed BOOLEAN NOT NULL DEFAULT false;
 
 ALTER TABLE teams ADD COLUMN IF NOT EXISTS team_code TEXT NOT NULL DEFAULT '';
 UPDATE teams SET team_code = team_key WHERE team_code = '';

@@ -298,7 +298,11 @@ function ensureMemeChannel(gameId) {
   const client = getClient();
   let channel = memeChannels.get(gameId);
   if (!channel) {
-    channel = client.channel(`meme:${gameId}`);
+    // self: true — người thả meme cũng nhận lại drop của chính mình, để meme
+    // hiện đồng loạt trên MỌI màn hình (Host + tất cả máy chơi).
+    channel = client.channel(`meme:${gameId}`, {
+      config: { broadcast: { self: true } },
+    });
     memeChannels.set(gameId, channel);
   }
   return channel;

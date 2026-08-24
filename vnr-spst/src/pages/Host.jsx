@@ -33,7 +33,9 @@ import {
 import { isSupabaseConfigured } from "../lib/supabase";
 import MemeDrop from "../components/MemeDrop.jsx";
 import ScoreFx from "../components/ScoreFx.jsx";
-import EffectCard, { REVEAL_TOTAL_MS } from "../components/EffectCard.jsx";
+import EffectCard, { REVEAL_TOTAL_MS, FLIP_AT_MS } from "../components/EffectCard.jsx";
+import WinnerPodium from "../components/WinnerPodium.jsx";
+import { playSound, stopSound, playRandomMemeSound } from "../game/sounds";
 import { useMemeDrop } from "../hooks/useMemeDrop.js";
 import "./Host.css";
 
@@ -163,6 +165,7 @@ export default function Host() {
   // có chơi animation lật bài hay không (reload giữa chừng thì không phát lại).
   const [revealingEffect, setRevealingEffect] = useState(false);
   const revealTimerRef = useRef(null);
+  const flipSoundTimerRef = useRef(null);
   const [drawSeq, setDrawSeq] = useState(0);
 
   useEffect(() => {
@@ -298,10 +301,14 @@ export default function Host() {
     };
   }, [reload]);
 
-  // Meme drops from Play devices — ephemeral, cosmetic only.
+  // Meme drops from Play devices — ephemeral, cosmetic only. Each arrival
+  // also plays a random meme stinger on the room speakers.
   useEffect(() => {
     if (!gameId) return undefined;
-    return subscribeToMemeDrops(gameId, (payload) => addMeme(payload));
+    return subscribeToMemeDrops(gameId, (payload) => {
+      addMeme(payload);
+      playRandomMemeSound();
+    });
   }, [gameId, addMeme]);
 
   const applyAnswer = useCallback(
@@ -311,6 +318,10 @@ export default function Host() {
       if (!s || !tms.length) return;
       const result = computeAnswerPatch(s, tms, optionIdx);
       if (!result) return;
+      stopSound("timer-tick");
+      if (result.kind === "correct") playSound("answer-correct");
+      else if (result.kind === "abandon") playSound("card-abandoned");
+      else playSound("answer-wrong");
       try {
         if (result.kind === "abandon") {
           const next = closeCard({ ...s, option_states: result.optionStates }, tms, result.nextSelectorIdx);
@@ -331,6 +342,7 @@ export default function Host() {
     const face = Math.floor(Math.random() * 6) + 1;
     const DICE_VALUES = [100, 300, 500, 200, 600, 1000];
     const score = DICE_VALUES[face - 1];
+    playSound("dice-roll");
     try {
       await saveGameState(gameId, s.revision, {
         ...s,
@@ -497,6 +509,9 @@ export default function Host() {
       if (s.phase !== "answering") return;
       if (s.deadline_at !== targetDeadline) return;
       const result = computeTimeoutAdvance(s, tms);
+      stopSound("timer-tick");
+      if (result.kind === "abandon") playSound("card-abandoned");
+      else playSound("turn-pass");
       try {
         if (result.kind === "abandon") {
           const next = closeCard(s, tms, result.nextSelectorIdx);
@@ -512,12 +527,34 @@ export default function Host() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.deadline_at, state?.phase, gameId, handleSaveConflict]);
 
+  // Đồng hồ cát tắt: phát sound tick đúng một lần khi còn đúng 7 giây của
+  // lượt trả lời (hoặc ngay lập tức nếu host reload khi đã dưới 7 giây).
+  useEffect(() => {
+    if (!state?.deadline_at || state?.phase !== "answering") return undefined;
+    const targetDeadline = state.deadline_at;
+    const remaining = new Date(targetDeadline).getTime() - Date.now();
+    if (remaining <= 0) return undefined;
+    const delay = Math.max(0, remaining - 7000);
+    const tickTimer = setTimeout(() => {
+      const s = stateRef.current;
+      if (!s || s.phase !== "answering" || s.deadline_at !== targetDeadline) return;
+      playSound("timer-tick");
+    }, delay);
+    return () => {
+      clearTimeout(tickTimer);
+      // Rời khỏi lượt trả lời (đã chọn / hết giờ / bỏ lá) → ngắt tiếng tick
+      // ngay lập tức thay vì để phát nốt hết file.
+      stopSound("timer-tick");
+    };
+  }, [state?.deadline_at, state?.phase]);
+
   const openCard = async (num) => {
     const s = stateRef.current;
     const tms = teamsRef.current;
     if (!s || s.phase !== "selecting_card") return;
     const card = getCardByNumber(s.card_deck, num);
     if (!card || (s.used_card_numbers || []).includes(num)) return;
+    playSound("card-flip");
     const startIdx = Number.isInteger(s.answering_team_idx) ? s.answering_team_idx : 0;
     const order = tms.map((_, i) => (startIdx + i) % tms.length);
     const firstTeam = tms[order[0]];
@@ -589,6 +626,19 @@ export default function Host() {
     setRevealingEffect(true);
     revealTimerRef.current = setTimeout(() => setRevealingEffect(false), REVEAL_TOTAL_MS);
     setDrawSeq((n) => n + 1);
+
+    // Sound: tiếng rút lá ngay khi bấm, tiếng lật đúng lúc mặt trước hé mở,
+    // kèm stinger riêng cho hai hiệu ứng "chấn động" (mất hết điểm / reset).
+    playSound("effect-draw");
+    if (flipSoundTimerRef.current) clearTimeout(flipSoundTimerRef.current);
+    flipSoundTimerRef.current = setTimeout(() => {
+      playSound("card-flip");
+      if (effect.type === "lose_all") {
+        setTimeout(() => playSound("meme-vine-boom"), 350);
+      } else if (effect.type === "reset") {
+        setTimeout(() => playSound("meme-bell"), 350);
+      }
+    }, FLIP_AT_MS);
 
     const patch = {
       ...s,
@@ -662,6 +712,7 @@ export default function Host() {
     if (!s) return;
     const next = closeCard(s, tms, s.effect_team_idx);
     if (pendingFx) {
+      playSound(pendingFx.type === "steal" ? "steal" : "meme-money");
       setScoreFx(pendingFx);
       setPendingFx(null);
     }
@@ -677,6 +728,7 @@ export default function Host() {
     const tms = teamsRef.current;
     if (!s || !tms.length) return;
     const ranked = [...tms].sort((a, b) => b.score - a.score);
+    playSound("victory");
     try {
       await saveGameState(gameId, s.revision, {
         ...s,
@@ -1001,31 +1053,14 @@ export default function Host() {
       {/* Score animation overlay (swap/steal) — cosmetic, auto-dismisses */}
       {scoreFx && <ScoreFx key={scoreFx.key} fx={scoreFx} />}
 
-      {/* Winner Overlay */}
-      <div className={"winner" + (state.show_winner ? " show" : "")}>
-        <div className="winner-card">
-          <h2>Kết thúc hành trình</h2>
-          <div className="name">{state.winner_name}</div>
-          <div>
-            {(state.rank_list || []).map((t, i) => (
-              <div key={t.team_key ?? i} className="rank">
-                <span>
-                  {i + 1}. {t.name}
-                </span>
-                <span>{t.score} điểm</span>
-              </div>
-            ))}
-          </div>
-          <div className="winner-actions">
-            <button type="button" className="host-btn ghost" onClick={closeWinner}>
-              Đóng
-            </button>
-            <button type="button" className="host-btn" onClick={resetGame}>
-              Ván mới
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* Winner Overlay — cinematic podium */}
+      {state.show_winner && (
+        <WinnerPodium
+          rankList={state.rank_list || []}
+          onClose={closeWinner}
+          onNewGame={resetGame}
+        />
+      )}
 
       {/* Meme Drop Overlay */}
       <MemeDrop activeMemes={activeMemes} />

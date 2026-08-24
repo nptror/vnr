@@ -627,3 +627,440 @@
     gap: 10px;
   }
 }
+
+/* ═══════════════════════════════════════════════════
+   WinnerPodium — cinematic end-game popup
+   ═══════════════════════════════════════════════════ */
+
+.wp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--paper);
+  background-image: radial-gradient(rgba(0,0,0,0.03) 1px, transparent 1px);
+  background-size: 4px 4px;
+  font-family: 'Noto Sans', sans-serif;
+  color: var(--ink);
+  overflow-y: auto;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.wp-overlay.show {
+  opacity: 1;
+}
+
+/* Cinematic vignette */
+.wp-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, transparent 40%, rgba(0,0,0,0.8) 100%);
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0;
+  animation: wpFadeVignette 1s ease-in-out 0.3s forwards;
+}
+@keyframes wpFadeVignette {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Camera flash for rank-1 reveal */
+.wp-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+  background: transparent;
+  animation: wpFlashEffect 1.5s ease-out 2.5s forwards;
+}
+@keyframes wpFlashEffect {
+  0% { background-color: transparent; }
+  10% { background-color: rgba(255,255,255,0.8); }
+  100% { background-color: transparent; }
+}
+
+/* ═══ Infinite confetti rain ═══ */
+.wp-confetti-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 12;
+}
+.wp-confetti-piece {
+  position: absolute;
+  top: -20px;
+  border-radius: 2px;
+  opacity: 0.9;
+  animation: wpConfettiFall linear infinite;
+  will-change: transform, opacity;
+}
+@keyframes wpConfettiFall {
+  0% {
+    transform: translateY(-20px) translateX(0) rotate(0deg);
+    opacity: 0.9;
+  }
+  25% {
+    transform: translateY(25vh) translateX(var(--sway)) rotate(90deg);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(50vh) translateX(calc(var(--sway) * -0.6)) rotate(200deg);
+    opacity: 0.9;
+  }
+  75% {
+    transform: translateY(75vh) translateX(calc(var(--sway) * 0.4)) rotate(300deg);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateY(105vh) translateX(calc(var(--sway) * -0.3)) rotate(var(--rotate));
+    opacity: 0;
+  }
+}
+
+/* Digital stamp rain */
+.wp-stamps-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 15;
+}
+.wp-dstamp {
+  position: absolute;
+  color: var(--line);
+  font-family: 'Noto Serif', serif;
+  font-weight: bold;
+  font-size: 22px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  border: 3px solid var(--line);
+  padding: 8px 16px;
+  transform: rotate(calc(-20deg + 40deg * var(--r)));
+  opacity: 0;
+  animation: wpStampShower 3s ease-out forwards;
+  animation-delay: calc(1.8s + var(--d) * 0.1s);
+  z-index: 15;
+  text-shadow: 0 0 10px rgba(169,137,95,0.4);
+  box-shadow: inset 0 0 10px rgba(169,137,95,0.3), 0 0 10px rgba(169,137,95,0.3);
+}
+@keyframes wpStampShower {
+  0% { transform: translateY(-100px) scale(2) rotate(calc(-20deg + 40deg * var(--r))); opacity: 0; }
+  10% { opacity: 1; }
+  80% { opacity: 0.8; }
+  100% { transform: translateY(100vh) scale(0.5) rotate(calc(-50deg + 100deg * var(--r))); opacity: 0; }
+}
+
+/* Header */
+.wp-header {
+  width: 100%;
+  border-bottom: 3px double var(--ink);
+  padding: 16px 32px;
+  z-index: 20;
+  position: relative;
+}
+.wp-header-title {
+  font-family: 'Noto Serif', serif;
+  font-weight: 700;
+  font-size: 28px;
+  color: var(--ink);
+}
+
+/* Main content */
+.wp-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  z-index: 20;
+  position: relative;
+  width: 100%;
+  max-width: 1100px;
+}
+
+.wp-doc-title {
+  text-align: center;
+  margin-bottom: 48px;
+  padding-bottom: 24px;
+  border-bottom: 0.5px solid var(--line);
+  width: 100%;
+  max-width: 600px;
+}
+.wp-doc-title h1 {
+  font-family: 'Noto Serif', serif;
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.wp-doc-title p {
+  font-size: 18px;
+  color: var(--maroon-dark);
+  font-style: italic;
+  margin: 0;
+}
+
+/* Podium container */
+.wp-podium-container {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 20px;
+  width: 100%;
+  max-width: 800px;
+  min-height: 440px;
+}
+
+.wp-pod-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  max-width: 240px;
+}
+
+/* Staggered reveal animations */
+.wp-pod-col.rank-3 {
+  animation: wpSlideRight 0.8s cubic-bezier(0.2,0.8,0.2,1) forwards;
+  animation-delay: 0.5s;
+  opacity: 0;
+}
+.wp-pod-col.rank-2 {
+  animation: wpSlideLeft 0.8s cubic-bezier(0.2,0.8,0.2,1) forwards;
+  animation-delay: 1.2s;
+  opacity: 0;
+}
+.wp-pod-col.rank-1 {
+  animation: wpFlashReveal 1s cubic-bezier(0.175,0.885,0.32,1.275) forwards;
+  animation-delay: 2.2s;
+  opacity: 0;
+  z-index: 10;
+}
+@keyframes wpSlideRight {
+  0% { transform: translateX(-50px) translateY(20px); opacity: 0; }
+  100% { transform: translateX(0) translateY(0); opacity: 1; }
+}
+@keyframes wpSlideLeft {
+  0% { transform: translateX(50px) translateY(20px); opacity: 0; }
+  100% { transform: translateX(0) translateY(0); opacity: 1; }
+}
+@keyframes wpFlashReveal {
+  0% { opacity: 0; transform: scale(0.9) translateY(40px); filter: brightness(1); }
+  50% { opacity: 1; transform: scale(1.05) translateY(-10px); filter: brightness(2) drop-shadow(0 0 40px rgba(184,134,11,0.8)); }
+  100% { opacity: 1; transform: scale(1) translateY(0); filter: brightness(1) drop-shadow(0 0 20px rgba(184,134,11,0.5)); }
+}
+
+/* Podium card (score box on top of base) */
+.wp-pod-card {
+  background: #fff;
+  border-top: 6px solid var(--gold);
+  border: 1px solid var(--line);
+  border-top-width: 6px;
+  padding: 20px 16px;
+  text-align: center;
+  width: 100%;
+  margin-bottom: 0;
+  box-shadow: 2px 2px 0 var(--line);
+  position: relative;
+}
+.wp-pod-col.rank-1 .wp-pod-card {
+  border-top-width: 8px;
+  border-left-width: 4px;
+  border-right-width: 4px;
+  padding: 28px 20px;
+  box-shadow: 0 0 30px rgba(184,134,11,0.4);
+}
+
+/* Victory stamp on rank-1 card */
+.wp-victory-stamp {
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 2px dashed var(--ink);
+  transform: rotate(-5deg);
+  opacity: 0.85;
+  mix-blend-mode: multiply;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+.wp-victory-stamp span {
+  font-family: 'Noto Serif', serif;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--ink);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.wp-pod-name {
+  font-family: 'Noto Serif', serif;
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+.wp-pod-col.rank-1 .wp-pod-name {
+  font-size: 28px;
+}
+
+.wp-pod-label {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--maroon-dark);
+  margin: 0 0 8px;
+}
+
+.wp-pod-score {
+  font-family: 'Noto Serif', serif;
+  font-weight: 700;
+  font-size: 32px;
+  color: var(--ink);
+}
+.wp-pod-col.rank-1 .wp-pod-score {
+  font-size: 40px;
+}
+
+/* Metallic gold text for rank-1 */
+.wp-pod-score.metallic {
+  background: linear-gradient(to right, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  background-size: 200% auto;
+  animation: wpShine 3s linear infinite;
+}
+.wp-pod-col.rank-1 .wp-pod-name {
+  background: linear-gradient(to right, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  background-size: 200% auto;
+  animation: wpShine 3s linear infinite;
+}
+@keyframes wpShine {
+  to { background-position: 200% center; }
+}
+
+/* Podium base (number column) */
+.wp-pod-base {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 20px;
+  background: var(--paper-dark);
+  border: 1px solid var(--line);
+  border-top: none;
+  box-shadow: inset 0 -10px 20px rgba(0,0,0,0.05);
+}
+.wp-pod-base.rank-3 { height: 130px; }
+.wp-pod-base.rank-2 { height: 190px; }
+.wp-pod-base.rank-1 { height: 250px; border: 2px solid var(--line); }
+
+.wp-pod-rank-num {
+  font-family: 'Noto Serif', serif;
+  font-weight: 700;
+  color: var(--ink);
+}
+.wp-pod-base.rank-3 .wp-pod-rank-num { font-size: 48px; }
+.wp-pod-base.rank-2 .wp-pod-rank-num { font-size: 64px; color: var(--line); }
+.wp-pod-base.rank-1 .wp-pod-rank-num {
+  font-size: 80px;
+  color: var(--ink);
+  text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  position: relative;
+  z-index: 2;
+}
+
+.wp-pod-medal {
+  font-size: 28px;
+  margin-top: 8px;
+}
+
+/* Remaining teams list */
+.wp-rest {
+  width: 100%;
+  max-width: 500px;
+  margin-top: 32px;
+  border-top: 0.5px solid var(--line);
+  padding-top: 16px;
+}
+.wp-rest-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--line);
+}
+.wp-rest-rank {
+  font-family: 'Noto Serif', serif;
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--maroon-dark);
+  min-width: 32px;
+}
+.wp-rest-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.wp-rest-name {
+  font-weight: 600;
+  font-size: 18px;
+  flex: 1;
+}
+.wp-rest-score {
+  font-family: 'Noto Serif', serif;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+/* Action buttons */
+.wp-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 40px;
+  width: 100%;
+  max-width: 400px;
+}
+.wp-actions .host-btn {
+  flex: 1;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .wp-header-title { font-size: 20px; }
+  .wp-doc-title h1 { font-size: 24px; }
+  .wp-podium-container { gap: 8px; min-height: 360px; }
+  .wp-pod-card { padding: 14px 10px; }
+  .wp-pod-name { font-size: 16px; }
+  .wp-pod-col.rank-1 .wp-pod-name { font-size: 22px; }
+  .wp-pod-score { font-size: 24px; }
+  .wp-pod-col.rank-1 .wp-pod-score { font-size: 30px; }
+  .wp-pod-base.rank-3 { height: 100px; }
+  .wp-pod-base.rank-2 { height: 150px; }
+  .wp-pod-base.rank-1 { height: 200px; }
+  .wp-pod-base.rank-3 .wp-pod-rank-num { font-size: 36px; }
+  .wp-pod-base.rank-2 .wp-pod-rank-num { font-size: 48px; }
+  .wp-pod-base.rank-1 .wp-pod-rank-num { font-size: 60px; }
+  .wp-victory-stamp { width: 56px; height: 56px; top: -14px; right: -14px; }
+  .wp-victory-stamp span { font-size: 9px; }
+}

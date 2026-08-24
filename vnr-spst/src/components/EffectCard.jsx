@@ -8,6 +8,9 @@ const HOLD_MS = 700
 
 export const REVEAL_TOTAL_MS = SUSPENSE_MS + FLIP_MS + HOLD_MS
 
+// Thời điểm mặt trước bắt đầu lật — Host dùng để đồng bộ sound card-flip.
+export const FLIP_AT_MS = SUSPENSE_MS
+
 const FACE_REVEAL_AT = SUSPENSE_MS + FLIP_MS
 const CONFETTI_COLORS = ['#c9a227', '#7a2430', '#3F5D45', '#1F4E66', '#f4d47c']
 const CONFETTI_COUNT = 10
