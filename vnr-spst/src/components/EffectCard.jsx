@@ -175,7 +175,7 @@ export default function EffectCard({
                     />
                   )}
                   <span>
-                    <span className="er-eyebrow">Đội {teamName ?? '???'} bốc được</span>
+                    <span className="er-eyebrow">{teamName ?? 'Đội ???'} bốc được</span>
                     <span className="er-title">{state.effect_label}</span>
                   </span>
                 </div>
@@ -192,7 +192,7 @@ export default function EffectCard({
                       <DiceCube state={state} />
                       {dicePendingRoll && (
                         <div className="er-note">
-                          <div>Đang chờ Đội {teamName} tung xúc xắc…</div>
+                          <div>Đang chờ {teamName} tung xúc xắc…</div>
                           <div className="er-actions">
                             <button type="button" className="host-btn ghost" onClick={onRollDice}>
                               🎲 Tung hộ
@@ -227,7 +227,7 @@ export default function EffectCard({
                   {needsTarget && (
                     <>
                       <div className="er-hint">
-                        Đang chờ Đội {teamName} chọn mục tiêu trên điện thoại — hoặc chọn hộ:
+                        Đang chờ {teamName} chọn mục tiêu trên điện thoại — hoặc chọn hộ:
                       </div>
                       <div className="er-targets">
                         {teams.map(
@@ -367,30 +367,36 @@ const STYLE = `
     transform: rotateY(180deg);
     background: #fdfbf7;
     border: 3px double #141b2c;
-    border-top: none;
+    border-radius: 18px;
     overflow: hidden;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 0 14px 14px;
   }
 
   .er-close {
-    position: absolute; top: 8px; right: 10px;
+    position: absolute; top: 12px; right: 12px;
     z-index: 2;
-    width: 28px; height: 28px;
+    width: 30px; height: 30px;
     border-radius: 9999px;
     border: 1px solid rgba(255,255,255,0.55);
-    background: rgba(20,27,44,0.22);
+    background: rgba(20,27,44,0.35);
     color: #fff;
-    font-size: 14px; line-height: 1;
+    font-size: 16px; line-height: 1;
     cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
   }
   .er-close:hover { background: rgba(20,27,44,0.45); }
 
   .er-banner {
     flex-shrink: 0;
-    display: flex; align-items: center; gap: 10px;
+    width: calc(100% + 28px);
+    margin-left: -14px;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
     background: var(--fx, #c9a227);
     color: #fff;
-    padding: 14px 44px 14px 18px;
+    padding: 16px 18px;
     box-shadow: inset 0 -4px 0 rgba(0,0,0,0.18);
+    text-align: center;
   }
   .er-eyebrow {
     display: block;
@@ -413,7 +419,7 @@ const STYLE = `
 
   .er-art {
     flex-shrink: 0;
-    margin: 26px auto 0;
+    margin: 28px auto 0;
     width: 118px; height: 118px;
     border-radius: 9999px;
     background: #faf8ff;
@@ -430,17 +436,21 @@ const STYLE = `
     text-align: center;
     font-size: 17px; line-height: 1.5;
     color: #6b6455;
+    width: 100%;
   }
 
   .er-dock {
     margin-top: auto;
+    margin-left: -14px;
+    margin-right: -14px;
+    margin-bottom: -14px;
     min-height: 172px;
     max-height: 46%;
-    width: 100%;
+    width: calc(100% + 28px);
     display: flex; flex-direction: column;
-    align-items: stretch; justify-content: center;
+    align-items: center; justify-content: center;
     gap: 10px;
-    padding: 14px 18px;
+    padding: 16px 22px;
     background: #f7f3e8;
     border-top: 2px dashed #d8d2c2;
     overflow-y: auto;
@@ -603,11 +613,13 @@ const STYLE = `
 
   @media (max-width: 640px), (max-height: 720px) {
     .er-card { height: clamp(430px, calc(100vh - 70px), 520px); }
+    .er-face--front { padding: 0 10px 10px; }
+    .er-banner { width: calc(100% + 20px); margin-left: -10px; padding: 14px 14px; }
     .er-art { width: 92px; height: 92px; margin-top: 16px; }
     .er-icon { font-size: 46px; }
     .er-title { font-size: 20px; }
-    .er-desc { font-size: 15px; padding: 12px 22px 0; }
-    .er-dock { min-height: 140px; padding: 10px 12px; }
+    .er-desc { font-size: 15px; padding: 12px 18px 0; }
+    .er-dock { min-height: 140px; padding: 12px 16px; margin-left: -10px; margin-right: -10px; margin-bottom: -10px; width: calc(100% + 20px); }
     .er-back-mark { font-size: 90px; }
   }
 `

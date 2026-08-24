@@ -52,8 +52,32 @@
   }
 }
 
+html {
+  /* Giữ cột scrollbar luôn chiếm chỗ để mọi overlay position:fixed căn giữa
+     cùng một trục với nội dung trang (không nhảy ±7-8px khi vào/ra màn có cuộn). */
+  overflow-y: scroll;
+  /* Thumb mỏng tối màu trong suốt — tránh khối sáng đặc mép phải khiến các
+     popup fixed trông bị lệch khi trình duyệt đang zoom cao. */
+  scrollbar-color: rgba(20, 16, 10, 0.35) transparent;
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(20, 16, 10, 0.3);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
 body {
   margin: 0;
+  overflow-x: hidden;
 }
 
 #root {
