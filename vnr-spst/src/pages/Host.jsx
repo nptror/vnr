@@ -32,6 +32,7 @@ import {
 import { isSupabaseConfigured } from "../lib/supabase";
 import MemeDrop from "../components/MemeDrop.jsx";
 import ScoreFx from "../components/ScoreFx.jsx";
+import EffectReveal, { REVEAL_TOTAL_MS } from "../components/EffectReveal.jsx";
 import { useMemeDrop } from "../hooks/useMemeDrop.js";
 import "./Host.css";
 
@@ -362,6 +363,12 @@ export default function Host() {
     const id = setTimeout(() => setScoreFx(null), 4000);
     return () => clearTimeout(id);
   }, [scoreFx]);
+
+  // Suspense card-flip reveal: bật khi host bốc lá (drawEffect là nơi duy nhất
+  // chuyển show_effect false→true). Trong lúc phát, dice modal và
+  // EffectCardOverlay bị che/hoãn để cả phòng chỉ thấy lá bài úp lật dần.
+  const [revealingEffect, setRevealingEffect] = useState(false);
+  const revealTimerRef = useRef(null);
 
   useEffect(() => {
     stateRef.current = state;
@@ -805,6 +812,10 @@ export default function Host() {
     }
     const effect = deck[cursor];
 
+    if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+    setRevealingEffect(true);
+    revealTimerRef.current = setTimeout(() => setRevealingEffect(false), REVEAL_TOTAL_MS);
+
     const patch = {
       ...s,
       phase: "resolving_effect",
@@ -1189,7 +1200,7 @@ export default function Host() {
       {/* Effect Card Overlay: skip for dice so dice modal handles its own display.
           key={state.revision} remounts (undismissed) whenever a new effect is
           drawn or the team's target choice is saved. */}
-      {state.show_effect && state.eff_body_buttons !== "dice" && (
+      {state.show_effect && !revealingEffect && state.eff_body_buttons !== "dice" && (
         <EffectCardOverlay
           key={state.revision}
           state={state}
@@ -1199,6 +1210,17 @@ export default function Host() {
           onPickTarget={(targetIdx) =>
             state.eff_body_buttons === "steal" ? resolveSteal(targetIdx) : resolveSwap(targetIdx)
           }
+        />
+      )}
+
+      {/* Suspense card-flip reveal khi host bốc lá bài hiệu ứng */}
+      {revealingEffect && state.effect_icon && (
+        <EffectReveal
+          key={`reveal-${state.revision}`}
+          icon={state.effect_icon}
+          label={state.effect_label}
+          teamName={teams[state.effect_team_idx]?.name}
+          teamColor={teams[state.effect_team_idx]?.color}
         />
       )}
 
@@ -1233,7 +1255,7 @@ export default function Host() {
 
       {/* ── Dice Modal ── */}
       <style>{DICE_STYLE}</style>
-      <div className={"dice-overlay" + (state.show_dice ? "" : " hidden")}>
+      <div className={"dice-overlay" + (state.show_dice && !revealingEffect ? "" : " hidden")}>
         <div className="dice-modal" style={{ position: "relative" }}>
           
           <div style={{ textAlign: 'center', marginBottom: '2rem', borderBottom: '0.5px solid #887272', paddingBottom: '1rem', width: '100%' }}>
