@@ -1,13 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getCardByNumber } from '../game/catalog'
-import { loadGame, subscribeToGame, subscribeToMemeDrops, createCoalescedReloader, submitAnswerEvent, submitDiceRollEvent, submitEffectTargetEvent, sendMemeDrop } from '../game/gameRepository'
+import { loadGame, subscribeToGame, createCoalescedReloader, submitAnswerEvent, submitDiceRollEvent, submitEffectTargetEvent, sendMemeDrop } from '../game/gameRepository'
 import { readSession } from '../game/session'
 import { playSound } from '../game/sounds'
 import { isSupabaseConfigured } from '../lib/supabase'
 import MemePanel from '../components/MemePanel.jsx'
-import MemeDrop from '../components/MemeDrop.jsx'
-import { useMemeDrop } from '../hooks/useMemeDrop.js'
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D']
 const ANSWER_SECONDS = 15
@@ -361,10 +359,6 @@ export default function Play() {
   const [submittedRevision, setSubmittedRevision] = useState(null)
   const [submitError, setSubmitError] = useState(null)
 
-  // Meme drops hiện trên mọi màn hình — mỗi máy chơi tự nhận broadcast
-  // và tự quản lý lifecycle (tự biến mất sau 3.5s).
-  const { activeMemes, addMeme } = useMemeDrop()
-
   useEffect(() => {
     if (!session) navigate('/pick-team', { replace: true })
   }, [session, navigate])
@@ -401,14 +395,9 @@ export default function Play() {
   }, [reload])
 
   useEffect(() => {
-    if (!session || !isSupabaseConfigured || !reload) return undefined
+    if (!session || !isSupabaseConfigured) return undefined
     return subscribeToGame(session.gameId, () => reload.schedule())
   }, [session, reload])
-
-  useEffect(() => {
-    if (!session || !isSupabaseConfigured) return undefined
-    return subscribeToMemeDrops(session.gameId, (payload) => addMeme(payload))
-  }, [session, addMeme])
 
   if (!session) return null
 
@@ -511,7 +500,6 @@ export default function Play() {
     submitError && submitError.atRevision === state.revision ? submitError.message : null
 
   const handleMemeDrop = (memeId) => {
-    playSound('ui-click')
     sendMemeDrop(session.gameId, {
       teamId: myTeam?.team_key,
       teamName: myTeam?.name,
@@ -778,8 +766,6 @@ export default function Play() {
           </div>
         </div>
       )}
-
-      <MemeDrop activeMemes={activeMemes} />
     </>
   )
 }

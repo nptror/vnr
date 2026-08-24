@@ -149,7 +149,7 @@ export default function EffectCard({
             </div>
           )}
           <div className="er-lift">
-            <div className="er-card">
+            <div className={`er-card${playFx ? "" : " er-show-front"}`}>
               <div className="er-face er-face--back">
                 <div className="er-back-frame" />
                 <div className="er-back-shine" />
@@ -310,6 +310,9 @@ const STYLE = `
     from { transform: rotateY(0deg); }
     to   { transform: rotateY(180deg); }
   }
+
+  /* Reload giữa chừng: không phát lại animation — lá hiển thị sẵn mặt trước */
+  .er-card.er-show-front { transform: rotateY(180deg); }
 
   .er-face {
     border-radius: 18px;

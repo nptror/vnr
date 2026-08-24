@@ -12,7 +12,7 @@ const STYLE = `
     position: fixed;
     inset: 0;
     pointer-events: none;
-    z-index: 100;
+    z-index: 9999;
     overflow: hidden;
   }
 
