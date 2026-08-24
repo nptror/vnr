@@ -80,8 +80,7 @@ export default function Landing() {
           font-family: 'Noto Serif', serif; font-size: 24px; line-height: 32px;
           font-weight: 600; text-align: center; color: #141b2c; margin: 0 0 1.5rem;
         }
-        .role-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
-        @media (min-width: 540px) { .role-grid { grid-template-columns: 1fr 1fr; } }
+        .role-grid { display: flex; justify-content: center; gap: 1.5rem; }
         .role-card {
           border: 1px solid #141b2c; padding: 1.5rem; background: #fff;
           display: flex; flex-direction: column; justify-content: space-between;
@@ -149,15 +148,8 @@ export default function Landing() {
 
           {/* Role navigation */}
           <div>
-            <h2 className="role-heading">Chọn Vai Trò Của Bạn</h2>
             <div className="role-grid">
-              <Link to="/host" className="role-card coordinator" onClick={savePin}>
-                <div>
-                  <div className="role-name">Người Điều Phối</div>
-                  <p className="role-desc">Quản lý lượt chơi và chấm điểm.</p>
-                </div>
-                <div className="go-arrow"><div className="box">→</div></div>
-              </Link>
+
 
               <Link to="/pick-team" className="role-card player" onClick={savePin}>
                 <div>
