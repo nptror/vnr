@@ -155,7 +155,10 @@ export function subscribeToGame(gameId, onChange) {
     .subscribe((status) => {
       // Socket hiccup: force an HTTP refresh now; supabase-js will also
       // rejoin the channel automatically once the socket recovers.
-      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") onChange();
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        console.warn(`[realtime] channel ${status} — falling back to HTTP polling`);
+        onChange();
+      }
     });
   return () => client.removeChannel(channel);
 }

@@ -20,6 +20,7 @@ import {
 import {
   createGame,
   loadGame,
+  findGameByPin,
   subscribeToGame,
   createCoalescedReloader,
   saveGameState,
@@ -30,6 +31,7 @@ import {
 } from "../game/gameRepository";
 import { isSupabaseConfigured } from "../lib/supabase";
 import MemeDrop from "../components/MemeDrop.jsx";
+import ScoreFx from "../components/ScoreFx.jsx";
 import { useMemeDrop } from "../hooks/useMemeDrop.js";
 import "./Host.css";
 
@@ -310,6 +312,7 @@ function EffectCardOverlay({ state, teamName, onContinue }) {
 
 export default function Host() {
   const [gameId, setGameId] = useState(null);
+  const [gamePin, setGamePin] = useState(null);
   const [teams, setTeams] = useState([]);
   const [state, setState] = useState(null);
   const [events, setEvents] = useState([]);
@@ -329,6 +332,14 @@ export default function Host() {
 
   const { activeMemes, addMeme } = useMemeDrop();
 
+  // ScoreFx — animation điểm số (swap/steal), chỉ hiển thị trên Host.
+  const [scoreFx, setScoreFx] = useState(null);
+  useEffect(() => {
+    if (!scoreFx) return undefined;
+    const id = setTimeout(() => setScoreFx(null), 4000);
+    return () => clearTimeout(id);
+  }, [scoreFx]);
+
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
@@ -344,6 +355,7 @@ export default function Host() {
     return createCoalescedReloader(async () => {
       try {
         const data = await loadGame(gameId, { includeEvents: true });
+        setGamePin(data.game?.pin ?? null);
         setTeams(data.teams);
         setState(data.state);
         setEvents(data.events);
@@ -376,20 +388,28 @@ export default function Host() {
     (async () => {
       try {
         let id = localStorage.getItem(HOST_GAME_ID_KEY);
+        let pin = null;
         if (id) {
           try {
-            await loadGame(id);
+            const data = await loadGame(id);
+            pin = data.game?.pin ?? null;
           } catch {
             id = null;
           }
         }
         if (!id) {
           const gamePin = localStorage.getItem('vnr_game_pin') || '1986';
-          id = await createGame(gamePin, createShuffledCardDeck(), createShuffledEffectDeck());
+          // Reuse the existing active room for this pin when there is one —
+          // otherwise every fresh browser/tab would fork a duplicate game
+          // instead of rejoining the session players are already in.
+          const existing = await findGameByPin(gamePin);
+          id = existing ? existing.id : await createGame(gamePin, createShuffledCardDeck(), createShuffledEffectDeck());
+          pin = existing ? (existing.pin ?? null) : gamePin;
           localStorage.setItem(HOST_GAME_ID_KEY, id);
         }
         if (!cancelled) {
           setGameId(id);
+          setGamePin(pin);
         }
       } catch (err) {
         if (!cancelled) {
@@ -513,6 +533,13 @@ export default function Host() {
         eff_body_buttons: null,
         revision: s.revision + 1,
       }, s);
+      setScoreFx({
+        key: Date.now(),
+        type: "steal",
+        amount,
+        a: { name: tms[fromIdx]?.name, color: tms[fromIdx]?.color, before: tms[fromIdx]?.score ?? 0, after: nextTeams[fromIdx]?.score ?? 0 },
+        b: { name: tms[targetIdx]?.name, color: tms[targetIdx]?.color, before: tms[targetIdx]?.score ?? 0, after: nextTeams[targetIdx]?.score ?? 0 },
+      });
     } catch (err) {
       handleSaveConflict(err);
     }
@@ -533,6 +560,12 @@ export default function Host() {
         eff_body_buttons: null,
         revision: s.revision + 1,
       }, s);
+      setScoreFx({
+        key: Date.now(),
+        type: "swap",
+        a: { name: tms[fromIdx]?.name, color: tms[fromIdx]?.color, before: tms[fromIdx]?.score ?? 0, after: nextTeams[fromIdx]?.score ?? 0 },
+        b: { name: tms[targetIdx]?.name, color: tms[targetIdx]?.color, before: tms[targetIdx]?.score ?? 0, after: nextTeams[targetIdx]?.score ?? 0 },
+      });
     } catch (err) {
       handleSaveConflict(err);
     }
@@ -623,10 +656,17 @@ export default function Host() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.deadline_at, state?.phase, gameId, handleSaveConflict]);
 
-  // Dice cube animation reacts to shared state.
+  // Dice cube animation reacts to shared state. The dice_rolling frame only
+  // exists in the DB for ~1.5s; on slow/poll-only connections (dead realtime
+  // socket) the host may first observe the state AFTER the result flip, so a
+  // short replay bounce is fired for unseen results instead of nothing.
+  const rollingSeenRef = useRef(null);
+  const replayedValueRef = useRef(null);
+  const replayTimerRef = useRef(null);
   useEffect(() => {
-    if (!state) return;
+    if (!state) return undefined;
     if (state.dice_rolling) {
+      rollingSeenRef.current = state.dice_value;
       const [rx, ry] = rotationForDiceValue(state.dice_value);
       if (cubeRef.current) {
         cubeRef.current.style.transition = "none";
@@ -642,9 +682,40 @@ export default function Host() {
     } else {
       if (wrapperRef.current) wrapperRef.current.classList.remove("dice-bouncing");
       if (shadowRef.current) shadowRef.current.classList.remove("shadow-rolling");
+
+      if (state.dice_value == null) {
+        rollingSeenRef.current = null;
+        replayedValueRef.current = null;
+      } else if (
+        state.dice_result_visible &&
+        replayedValueRef.current !== state.dice_value &&
+        rollingSeenRef.current !== state.dice_value
+      ) {
+        // Result observed without ever seeing it roll — quick replay bounce.
+        replayedValueRef.current = state.dice_value;
+        const value = state.dice_value;
+        const [rx, ry] = rotationForDiceValue(value);
+        const cube = cubeRef.current;
+        if (cube) {
+          cube.style.transition = "none";
+          cube.style.transform = "rotateX(0deg) rotateY(0deg)";
+          void cube.offsetHeight;
+          cube.style.transitionDuration = "700ms";
+          cube.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
+        }
+        if (wrapperRef.current) wrapperRef.current.classList.add("dice-bouncing");
+        if (shadowRef.current) shadowRef.current.classList.add("shadow-rolling");
+        clearTimeout(replayTimerRef.current);
+        replayTimerRef.current = setTimeout(() => {
+          if (wrapperRef.current) wrapperRef.current.classList.remove("dice-bouncing");
+          if (shadowRef.current) shadowRef.current.classList.remove("shadow-rolling");
+          if (cubeRef.current) cubeRef.current.style.transitionDuration = "";
+        }, 750);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.dice_rolling, state?.dice_value]);
+  useEffect(() => () => clearTimeout(replayTimerRef.current), []);
 
   const openCard = async (num) => {
     const s = stateRef.current;
@@ -924,7 +995,7 @@ export default function Host() {
           <div className="sub">Trò chơi thuyết trình lịch sử Đảng</div>
           <h1>Hành Trình Đổi Mới</h1>
           <div className="sub" style={{ marginTop: 6 }}>
-            Đại hội VI (1986) → Đại hội VIII (1996) → Đại hội IX (2001) → 2006 · PIN: <b>1986</b>
+            Đại hội VI (1986) → Đại hội VIII (1996) → Đại hội IX (2001) → 2006 · PIN: <b>{gamePin ?? "…"}</b>
           </div>
         </div>
         <div className="stamp">
@@ -1095,6 +1166,9 @@ export default function Host() {
           onContinue={continueAfterEffect}
         />
       )}
+
+      {/* Score animation overlay (swap/steal) — cosmetic, auto-dismisses */}
+      {scoreFx && <ScoreFx key={scoreFx.key} fx={scoreFx} />}
 
       {/* Winner Overlay */}
       <div className={"winner" + (state.show_winner ? " show" : "")}>

@@ -79,7 +79,9 @@ export default function PickTeam() {
         setError(null)
         try {
             const game = await findGameByPin(pin.trim())
-            if (!game) throw new Error('Không tìm thấy phòng chơi với mã PIN này.')
+            if (!game) {
+                throw new Error(`Không tìm thấy phòng với mã ${pin.trim()}. Người điều phối cần mở /host (một lần) để tạo phòng trước — sau đó bấm lại đội.`)
+            }
             // By default, the team code is equal to the team id (e.g. 'red')
             const { gameId, teamKey } = await joinGame(game.id, team.id, team.id)
             sessionStorage.setItem(SESSION_KEY, JSON.stringify({ gameId, teamKey }))
@@ -168,6 +170,7 @@ export default function PickTeam() {
         .pt-pin-row input {
           border: 1px solid #887272; padding: 0.6rem 1rem; font-size: 16px;
           background: #fff; min-width: 140px;
+          color: #141b2c; -webkit-text-fill-color: #141b2c;
         }
         .pt-grid {
           display: grid;
@@ -240,6 +243,7 @@ export default function PickTeam() {
         .pt-modal input {
           width: 100%; box-sizing: border-box; border: 1px solid #887272;
           padding: 0.6rem 0.75rem; font-size: 16px;
+          color: #141b2c; -webkit-text-fill-color: #141b2c; background: #fff;
         }
         .pt-modal-actions { display: flex; gap: 0.5rem; margin-top: 1.5rem; }
         .pt-modal-actions button {

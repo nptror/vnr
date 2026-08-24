@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 export default function Landing() {
-  const [pin, setPin] = useState('1986')
+  // Start from the stored room code so visiting /pin (or a previous session)
+  // isn't silently reset back to '1986' when navigating via role cards.
+  const [pin, setPin] = useState(() => localStorage.getItem('vnr_game_pin') || '1986')
 
   const savePin = () => {
     localStorage.setItem('vnr_game_pin', pin.trim() || '1986')
@@ -127,23 +129,22 @@ export default function Landing() {
             <p>Văn kiện phiên làm việc 1986</p>
           </header>
 
-          <p className="intro-text">
-            Người điều phối mở <strong>/host</strong> trên màn hình trình
-            chiếu để quản lý lượt chơi và chấm điểm. Mỗi đội cử một đại diện
-            mở <strong>/pick-team</strong> trên thiết bị của đội mình để tham
-            gia trả lời câu hỏi.
-          </p>
+
 
           <hr className="divider" />
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '2rem' }}>
             <label htmlFor="landing-pin" style={{ fontFamily: "'Noto Serif', serif", fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.5rem', color: '#141b2c' }}>MÃ PIN PHÒNG CHƠI</label>
-            <input 
+            <input
               id="landing-pin"
               value={pin}
               onChange={e => setPin(e.target.value)}
-              style={{ border: '2px solid #141b2c', padding: '0.5rem 1rem', fontSize: '18px', textAlign: 'center', maxWidth: '160px', fontFamily: "'Courier New', monospace", fontWeight: 'bold' }}
+              maxLength={8}
+              autoComplete="off"
+              inputMode="numeric"
+              style={{ border: '2px solid #141b2c', padding: '0.5rem 1rem', fontSize: '18px', textAlign: 'center', maxWidth: '160px', fontFamily: "'Courier New', monospace", fontWeight: 'bold', color: '#141b2c' }}
             />
+
           </div>
 
           {/* Role navigation */}
