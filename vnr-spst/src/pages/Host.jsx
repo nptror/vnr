@@ -482,7 +482,11 @@ export default function Host() {
     let nextTeams = tms;
     if (effect.type === "points" || effect.type === "dice_subtract") {
       patch.eff_body_buttons = "dice";
-      patch.show_dice = true; // Show dice modal immediately when drawn
+      patch.show_dice = true;
+      // Reset dice state — tránh carry-over từ lượt trước khiến kết quả hiện ngay
+      patch.dice_rolling = false;
+      patch.dice_value = null;
+      patch.dice_result_visible = false;
     } else if (effect.type === "lose_all") {
       nextTeams = loseAllScore(tms, winnerIdx);
       patch.effect_result = `${tms[winnerIdx]?.name} mất hết điểm!`;
@@ -512,13 +516,9 @@ export default function Host() {
     const winnerIdx = Number.isInteger(s.effect_team_idx) ? s.effect_team_idx : 0;
     const nextTeams = addDiceScore(tms, winnerIdx, FLAT_BONUS_POINTS);
 
-    if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
-    setRevealingEffect(true);
-    revealTimerRef.current = setTimeout(() => setRevealingEffect(false), REVEAL_TOTAL_MS);
+    // Bỏ qua animation lật bài — hiện popup kết quả ngay lập tức.
+    setRevealingEffect(false);
     setDrawSeq((n) => n + 1);
-    playSound("effect-draw");
-    if (flipSoundTimerRef.current) clearTimeout(flipSoundTimerRef.current);
-    flipSoundTimerRef.current = setTimeout(() => playSound("card-flip"), FLIP_AT_MS);
 
     const patch = {
       ...s,
@@ -788,13 +788,9 @@ export default function Host() {
     const winnerIdx = tms.findIndex((t) => t.team_key === s.answer_submission_team_key);
     const effectDef = EFFECT_DEFINITIONS.find((d) => d.type === "points");
 
-    if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
-    setRevealingEffect(true);
-    revealTimerRef.current = setTimeout(() => setRevealingEffect(false), REVEAL_TOTAL_MS);
+    // Bỏ qua animation lật bài — hiện popup "Rút Điểm May Mắn" ngay lập tức.
+    setRevealingEffect(false);
     setDrawSeq((n) => n + 1);
-    playSound("effect-draw");
-    if (flipSoundTimerRef.current) clearTimeout(flipSoundTimerRef.current);
-    flipSoundTimerRef.current = setTimeout(() => playSound("card-flip"), FLIP_AT_MS);
 
     const patch = {
       ...s,
@@ -807,7 +803,7 @@ export default function Host() {
       effect_desc: effectDef?.desc ?? "Tung xúc xắc để nhận điểm.",
       effect_team_idx: winnerIdx < 0 ? 0 : winnerIdx,
       effect_result: null,
-      effect_revealed: false,
+      effect_revealed: true,
       show_eff_continue: false,
       eff_body_buttons: "dice",
       revision: s.revision + 1,
