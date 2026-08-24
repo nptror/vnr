@@ -304,14 +304,26 @@ export function submitEffectTargetEvent({ gameId, teamKey, revision, targetIdx }
 const MEME_CHANNEL_LINGER_MS = 10_000;
 const memeChannels = new Map(); // gameId -> entry
 
+function makeMemeChannel(gameId) {
+  // self: true — máy thả cũng nhận lại drop của chính mình.
+  return getClient().channel(`meme:${gameId}`, { config: { broadcast: { self: true } } });
+}
+
+// Channel.on() không thể gỡ listener, nên chỉ đăng ký MỘT listener cho mỗi
+// entry và để callback mới nhất (entry.handler) thay thế — tránh nhân đôi
+// drop khi StrictMode mount lại, resubscribe nhiều lần, hoặc khi channel bị
+// thay mới sau lỗi (xem ensureMemeJoined).
+function bindMemeChannel(entry) {
+  entry.channel.on("broadcast", { event: "meme_drop" }, ({ payload }) => entry.handler?.(payload));
+  entry.bound = true;
+}
+
 function acquireMemeChannel(gameId) {
   let entry = memeChannels.get(gameId);
   if (!entry) {
     entry = {
-      // self: true — máy thả cũng nhận lại drop của chính mình.
-      channel: getClient().channel(`meme:${gameId}`, {
-        config: { broadcast: { self: true } },
-      }),
+      gameId,
+      channel: makeMemeChannel(gameId),
       refs: 0,
       joinPromise: null,
       pendingRemove: null,
@@ -341,16 +353,31 @@ function releaseMemeChannel(gameId) {
 }
 
 // Join một lần duy nhất cho mỗi entry; các lời gọi sau chia sẻ cùng promise.
-// Lỗi socket tạm thời được bỏ qua — supabase-js tự rejoin, còn promise sẽ được
-// đánh dấu lại để lần gửi kế tiếp thử join mới.
+//
+// Một kênh Phoenix đã vào trạng thái "errored"/"timed_out" (socket rớt tạm
+// thời, tab Host để lâu ở màn chờ trước khi có người chơi...) không thể
+// subscribe() lại — gọi subscribe() trên chính nó là no-op im lặng, nên nếu
+// chỉ null hoá joinPromise như trước, Host sẽ "điếc" vĩnh viễn với mọi
+// broadcast tới sau đó và cần tải lại trang mới hồi phục. Ở đây thay hẳn
+// bằng 1 channel instance MỚI (cùng topic) rồi tự rejoin ngay — không cần
+// reload thủ công. Đợi 1s trước khi thử lại để tránh vòng lặp dồn dập nếu
+// mạng đang lỗi kéo dài.
 function ensureMemeJoined(entry) {
   if (entry.channel.state === "joined") return Promise.resolve();
   if (!entry.joinPromise) {
     entry.joinPromise = new Promise((resolve) => {
       entry.channel.subscribe((status) => {
-        if (status === "SUBSCRIBED") resolve();
-        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        if (status === "SUBSCRIBED") {
+          resolve();
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           entry.joinPromise = null;
+          const stale = entry.channel;
+          setTimeout(() => {
+            entry.channel = makeMemeChannel(entry.gameId);
+            bindMemeChannel(entry);
+            getClient().removeChannel(stale);
+            resolve(ensureMemeJoined(entry));
+          }, 1000);
         }
       });
     });
@@ -360,13 +387,7 @@ function ensureMemeJoined(entry) {
 
 export function subscribeToMemeDrops(gameId, onDrop) {
   const entry = acquireMemeChannel(gameId);
-  // Channel.on() không thể gỡ listener, nên chỉ đăng ký MỘT listener cho mỗi
-  // entry và để callback mới nhất thay thế — tránh nhân đôi drop khi StrictMode
-  // mount lại hoặc resubscribe nhiều lần.
-  if (!entry.bound) {
-    entry.channel.on("broadcast", { event: "meme_drop" }, ({ payload }) => entry.handler?.(payload));
-    entry.bound = true;
-  }
+  if (!entry.bound) bindMemeChannel(entry);
   entry.handler = onDrop;
   ensureMemeJoined(entry);
   return () => releaseMemeChannel(gameId);

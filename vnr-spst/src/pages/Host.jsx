@@ -35,8 +35,9 @@ import MemeDrop from "../components/MemeDrop.jsx";
 import ScoreFx from "../components/ScoreFx.jsx";
 import EffectCard, { REVEAL_TOTAL_MS, FLIP_AT_MS } from "../components/EffectCard.jsx";
 import WinnerPodium from "../components/WinnerPodium.jsx";
-import { playSound, stopSound, playRandomMemeSound } from "../game/sounds";
-import { useMemeDrop } from "../hooks/useMemeDrop.js";
+import { playSound, stopSound, playMemeSoundFromPool } from "../game/sounds";
+import { getMemeSoundPool } from "../config/memes";
+import { useMemeDrop, MEME_LIFETIME } from "../hooks/useMemeDrop.js";
 import "./Host.css";
 
 const HOST_GAME_ID_KEY = "vnr_host_game_id";
@@ -44,13 +45,21 @@ const ANSWER_SECONDS = 15;
 
 const MAX_WRONG_BEFORE_ABANDON = 3;
 
+// Dice faces 1-6 → points, used both for the guaranteed Tầng 1 roll on every
+// correct answer (startGuaranteedDiceRoll) and whenever a "points"/
+// "dice_subtract" effect card is drawn in Tầng 2 (pickAndApplyEffect).
+const DICE_VALUES = [100, 200, 300, 400, 500, 600];
+const FLAT_BONUS_POINTS = 200;
+
 function computeDeadlineAt() {
   return new Date(Date.now() + ANSWER_SECONDS * 1000).toISOString();
 }
 
 // Wrong answer → next attempt, unless 3 options have been marked wrong or the
-// attempt order is exhausted, in which case the card is abandoned entirely:
-// no correct answer is revealed and no effect is drawn (GAMEPLAY.md).
+// attempt order is exhausted, in which case the card is revealed (correct
+// option shown, phase → closing_card) without drawing an effect, and the
+// round ends the same way a correct answer's effect resolution would
+// (GAMEPLAY.md).
 function computeAnswerPatch(state, teams, optionIdx) {
   const card = getCardByNumber(state.card_deck, state.active_card_num);
   if (!card) return null;
@@ -75,9 +84,17 @@ function computeAnswerPatch(state, teams, optionIdx) {
   const attemptIdx = state.attempt_idx + 1;
 
   if (wrongCount >= MAX_WRONG_BEFORE_ABANDON || attemptIdx >= state.attempt_order.length) {
-    const nextSelectorIdx =
-      attemptIdx < state.attempt_order.length ? state.attempt_order[attemptIdx] : state.attempt_order[0];
-    return { kind: "abandon", optionStates, nextSelectorIdx };
+    optionStates[card.correct] = "correct";
+    return {
+      kind: "reveal_fail",
+      patch: {
+        ...state,
+        option_states: optionStates,
+        phase: "closing_card",
+        show_explain: true,
+        answer_submission_team_key: null,
+      },
+    };
   }
 
   const nextTeamIdx = state.attempt_order[attemptIdx];
@@ -101,17 +118,26 @@ function computeAnswerPatch(state, teams, optionIdx) {
 
 // Timeout → next attempt, same rotation as a wrong answer, but no option was
 // actually picked so nothing in option_states is marked "wrong"; it only
-// advances answering_team_idx (or abandons the card via closeCard when the
-// attempt order is exhausted, exactly like the 3-wrong-answers abandon path).
+// advances answering_team_idx (or reveals the correct answer via the same
+// closing_card path as computeAnswerPatch when the attempt order is
+// exhausted).
 function computeTimeoutAdvance(state, teams) {
   const attemptIdx = state.attempt_idx + 1;
 
   if (attemptIdx >= state.attempt_order.length) {
-    // Unlike computeAnswerPatch's abandon branch (reachable via wrongCount
-    // too, while attemptIdx may still be in range), this branch is only ever
-    // reached because the attempt order is exhausted — so the next selector
-    // is always the first team in that order.
-    return { kind: "abandon", nextSelectorIdx: state.attempt_order[0] };
+    const card = getCardByNumber(state.card_deck, state.active_card_num);
+    const optionStates = Array.isArray(state.option_states) ? [...state.option_states] : [];
+    if (card) optionStates[card.correct] = "correct";
+    return {
+      kind: "reveal_fail",
+      patch: {
+        ...state,
+        option_states: optionStates,
+        phase: "closing_card",
+        show_explain: true,
+        answer_submission_team_key: null,
+      },
+    };
   }
 
   const nextTeamIdx = state.attempt_order[attemptIdx];
@@ -160,7 +186,8 @@ export default function Host() {
   // hiệu ứng điểm bay trên bảng.
   const [pendingFx, setPendingFx] = useState(null);
 
-  // Suspense card-flip reveal: bật khi host bốc lá (drawEffect là nơi duy nhất
+  // Suspense card-flip reveal: bật mỗi khi có thẻ hiệu ứng mới lật lên
+  // (startGuaranteedDiceRoll / pickAndApplyEffect / grantFlatBonus đều
   // chuyển show_effect false→true). EffectCard dùng nó để biết lần mount này
   // có chơi animation lật bài hay không (reload giữa chừng thì không phát lại).
   const [revealingEffect, setRevealingEffect] = useState(false);
@@ -307,7 +334,10 @@ export default function Host() {
     if (!gameId) return undefined;
     return subscribeToMemeDrops(gameId, (payload) => {
       addMeme(payload);
-      playRandomMemeSound();
+      // Âm thanh đặc trưng của đúng sticker vừa thả (xem
+      // config/memes.js#getMemeSoundPool) — cắt đúng lúc sticker biến mất
+      // (MEME_LIFETIME) vì vài file âm thanh dài hơn 3.5s hiển thị.
+      playMemeSoundFromPool(getMemeSoundPool(payload.memeId), MEME_LIFETIME);
     });
   }, [gameId, addMeme]);
 
@@ -320,15 +350,10 @@ export default function Host() {
       if (!result) return;
       stopSound("timer-tick");
       if (result.kind === "correct") playSound("answer-correct");
-      else if (result.kind === "abandon") playSound("card-abandoned");
+      else if (result.kind === "reveal_fail") playSound("card-abandoned");
       else playSound("answer-wrong");
       try {
-        if (result.kind === "abandon") {
-          const next = closeCard({ ...s, option_states: result.optionStates }, tms, result.nextSelectorIdx);
-          await saveGameState(gameId, s.revision, next, s);
-        } else {
-          await saveGameState(gameId, s.revision, { ...result.patch, revision: s.revision + 1 }, s);
-        }
+        await saveGameState(gameId, s.revision, { ...result.patch, revision: s.revision + 1 }, s);
       } catch (err) {
         handleSaveConflict(err);
       }
@@ -340,7 +365,6 @@ export default function Host() {
     const s = stateRef.current;
     if (!s || s.phase !== "resolving_effect" || s.eff_body_buttons !== "dice") return;
     const face = Math.floor(Math.random() * 6) + 1;
-    const DICE_VALUES = [100, 300, 500, 200, 600, 1000];
     const score = DICE_VALUES[face - 1];
     playSound("dice-roll");
     try {
@@ -383,6 +407,169 @@ export default function Host() {
         console.error("Failed to finish dice roll", err);
       }
     }, 1500);
+  };
+
+  // Core of the "bốc 1 trong 6 lá phép" mechanic — shared by the Tầng 2
+  // "Thử vận may" choice (see resolveBonusChoice) and the "🧪 Test hiệu ứng"
+  // panel (forcedType set). No phase guard: by the time this runs we're
+  // already committed to drawing a card (Host forced a type for testing, or
+  // the player/Host already chose "bốc lá phép" on the bonus-choice screen),
+  // so re-checking phase === "explaining" would incorrectly block the Tầng 2
+  // path (phase is "resolving_effect" there, not "explaining").
+  const pickAndApplyEffect = async (forcedType = null) => {
+    const s = stateRef.current;
+    const tms = teamsRef.current;
+    if (!s || !tms.length) return;
+
+    let winnerIdx = s.answer_submission_team_key
+      ? tms.findIndex((t) => t.team_key === s.answer_submission_team_key)
+      : -1;
+    if (winnerIdx < 0 || !tms[winnerIdx]) {
+      winnerIdx = Number.isInteger(s.answering_team_idx) ? s.answering_team_idx % tms.length : 0;
+    }
+
+    let deck = Array.isArray(s.effect_deck) ? s.effect_deck : [];
+    let cursor = s.effect_cursor ?? 0;
+    if (cursor >= deck.length) {
+      deck = shuffle(deck.length ? deck : createShuffledEffectDeck());
+      cursor = 0;
+    }
+    if (forcedType) {
+      let matchIdx = deck.findIndex((e, i) => i >= cursor && e.type === forcedType);
+      if (matchIdx < 0) matchIdx = deck.findIndex((e) => e.type === forcedType);
+      if (matchIdx < 0) return;
+      deck = [...deck];
+      [deck[cursor], deck[matchIdx]] = [deck[matchIdx], deck[cursor]];
+    }
+    const effect = deck[cursor];
+
+    if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+    setRevealingEffect(true);
+    revealTimerRef.current = setTimeout(() => setRevealingEffect(false), REVEAL_TOTAL_MS);
+    setDrawSeq((n) => n + 1);
+
+    // Sound: tiếng rút lá ngay khi bấm, tiếng lật đúng lúc mặt trước hé mở,
+    // kèm stinger riêng cho hai hiệu ứng "chấn động" (mất hết điểm / reset).
+    playSound("effect-draw");
+    if (flipSoundTimerRef.current) clearTimeout(flipSoundTimerRef.current);
+    flipSoundTimerRef.current = setTimeout(() => {
+      playSound("card-flip");
+      if (effect.type === "lose_all") {
+        setTimeout(() => playSound("meme-vine-boom"), 350);
+      } else if (effect.type === "reset") {
+        setTimeout(() => playSound("meme-bell"), 350);
+      }
+    }, FLIP_AT_MS);
+
+    const patch = {
+      ...s,
+      phase: "resolving_effect",
+      show_effect: true,
+      effect_type: effect.type,
+      effect_icon: effect.icon,
+      effect_label: effect.label,
+      effect_desc: effect.desc,
+      effect_team_idx: winnerIdx,
+      effect_result: null,
+      effect_revealed: false,
+      show_eff_continue: false,
+      eff_body_buttons: null,
+      effect_deck: deck,
+      effect_cursor: cursor + 1,
+      revision: s.revision + 1,
+    };
+
+    let nextTeams = tms;
+    if (effect.type === "points" || effect.type === "dice_subtract") {
+      patch.eff_body_buttons = "dice";
+      patch.show_dice = true; // Show dice modal immediately when drawn
+    } else if (effect.type === "lose_all") {
+      nextTeams = loseAllScore(tms, winnerIdx);
+      patch.effect_result = `${tms[winnerIdx]?.name} mất hết điểm!`;
+      patch.show_eff_continue = true;
+    } else if (effect.type === "reset") {
+      nextTeams = resetScores(tms);
+      patch.effect_result = "Điểm của tất cả các đội đã reset về 0!";
+      patch.show_eff_continue = true;
+    } else if (effect.type === "steal") {
+      patch.eff_body_buttons = "steal";
+    } else if (effect.type === "swap") {
+      patch.eff_body_buttons = "swap";
+    }
+
+    try {
+      if (nextTeams !== tms) await saveTeams(gameId, nextTeams);
+      await saveGameState(gameId, s.revision, patch, s);
+    } catch (err) {
+      handleSaveConflict(err);
+    }
+  };
+
+  const grantFlatBonus = async () => {
+    const s = stateRef.current;
+    const tms = teamsRef.current;
+    if (!s || !tms.length) return;
+    const winnerIdx = Number.isInteger(s.effect_team_idx) ? s.effect_team_idx : 0;
+    const nextTeams = addDiceScore(tms, winnerIdx, FLAT_BONUS_POINTS);
+
+    if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+    setRevealingEffect(true);
+    revealTimerRef.current = setTimeout(() => setRevealingEffect(false), REVEAL_TOTAL_MS);
+    setDrawSeq((n) => n + 1);
+    playSound("effect-draw");
+    if (flipSoundTimerRef.current) clearTimeout(flipSoundTimerRef.current);
+    flipSoundTimerRef.current = setTimeout(() => playSound("card-flip"), FLIP_AT_MS);
+
+    const patch = {
+      ...s,
+      effect_type: "flat_bonus",
+      effect_icon: "🎉",
+      effect_label: "Cơ Hội May Mắn",
+      effect_desc: `Thưởng cố định ${FLAT_BONUS_POINTS} điểm.`,
+      effect_result: `${tms[winnerIdx]?.name} nhận thêm +${FLAT_BONUS_POINTS} điểm may mắn!`,
+      show_eff_continue: true,
+      eff_body_buttons: null,
+      revision: s.revision + 1,
+    };
+    try {
+      await saveTeams(gameId, nextTeams);
+      await saveGameState(gameId, s.revision, patch, s);
+    } catch (err) {
+      handleSaveConflict(err);
+    }
+  };
+
+  // TẦNG 2 (nhánh "có Cơ Hội May Mắn") — chuyển sang màn hình lựa chọn, chờ
+  // đội trên /play (hoặc Host bấm hộ) CHỌN giữa 2 phần thưởng.
+  const offerBonusChoice = useCallback(async () => {
+    const s = stateRef.current;
+    if (!s) return;
+    try {
+      await saveGameState(gameId, s.revision, {
+        ...s,
+        effect_type: "bonus_choice",
+        effect_icon: "🍀",
+        effect_label: "Cơ Hội May Mắn",
+        effect_desc: "Chọn: nhận chắc +200 điểm, hay thử vận may bốc 1 lá phép?",
+        effect_result: null,
+        show_dice: false,
+        show_eff_continue: false,
+        eff_body_buttons: "bonus_choice",
+        revision: s.revision + 1,
+      }, s);
+    } catch (err) {
+      handleSaveConflict(err);
+    }
+  }, [gameId, handleSaveConflict]);
+
+  // choice: 0 = nhận chắc +200đ, 1 = thử vận may bốc 1 lá phép. Tái dùng
+  // nguyên kênh PLAYER_EFFECT_TARGET/targetIdx đã có cho steal/swap.
+  const resolveBonusChoice = async (choice) => {
+    if (choice === 1) {
+      await pickAndApplyEffect();
+    } else {
+      await grantFlatBonus();
+    }
   };
 
   const resolveSteal = async (targetIdx) => {
@@ -477,7 +664,7 @@ export default function Host() {
           processedEventIds.current.add(event.id);
           const s = stateRef.current;
           if (!s || s.phase !== "resolving_effect") continue;
-          if (s.eff_body_buttons !== "steal" && s.eff_body_buttons !== "swap") continue;
+          if (!["steal", "swap", "bonus_choice"].includes(s.eff_body_buttons)) continue;
           if (s.show_eff_continue) continue; // Already resolved
           const { revision, targetIdx } = event.payload || {};
           if (revision !== s.revision) continue;
@@ -486,6 +673,7 @@ export default function Host() {
 
           if (s.eff_body_buttons === "steal") await resolveSteal(targetIdx);
           if (s.eff_body_buttons === "swap") await resolveSwap(targetIdx);
+          if (s.eff_body_buttons === "bonus_choice") await resolveBonusChoice(targetIdx);
         }
       }
     })();
@@ -510,15 +698,10 @@ export default function Host() {
       if (s.deadline_at !== targetDeadline) return;
       const result = computeTimeoutAdvance(s, tms);
       stopSound("timer-tick");
-      if (result.kind === "abandon") playSound("card-abandoned");
+      if (result.kind === "reveal_fail") playSound("card-abandoned");
       else playSound("turn-pass");
       try {
-        if (result.kind === "abandon") {
-          const next = closeCard(s, tms, result.nextSelectorIdx);
-          await saveGameState(gameId, s.revision, next, s);
-        } else {
-          await saveGameState(gameId, s.revision, { ...result.patch, revision: s.revision + 1 }, s);
-        }
+        await saveGameState(gameId, s.revision, { ...result.patch, revision: s.revision + 1 }, s);
       } catch (err) {
         handleSaveConflict(err);
       }
@@ -590,127 +773,86 @@ export default function Host() {
     }
   };
 
-  // forcedType: dùng bởi panel Test hiệu ứng — ép bốc đúng loại lá chỉ định
-  // (hoán đổi vị trí lá khớp đầu tiên về cursor để bộ bài vẫn tiêu thụ chuẩn)
-  // và bỏ qua điều kiện phase/explaining để test được ở mọi thời điểm.
-  const drawEffect = async (forcedType = null) => {
+  // TẦNG 1 — luôn luôn xảy ra khi trả lời đúng: tung xúc xắc, cộng điểm ngay
+  // theo mặt xúc xắc. Không đụng effect_deck/effect_cursor vì đây là thưởng
+  // chắc-chắn-có, không phải bốc từ bộ 32 lá giới hạn. effect_type đánh dấu
+  // "points_base" (khác "points" thường) để confirmAndContinueDice biết đây
+  // là lượt xúc xắc bắt buộc cần xét thêm Tầng 2, phân biệt với một lượt xúc
+  // xắc đến từ lá "rút điểm/trừ điểm" bốc được ở Tầng 2 (không xét lại nữa).
+  const startGuaranteedDiceRoll = () => {
     const s = stateRef.current;
     const tms = teamsRef.current;
     if (!s || !tms.length) return;
-    if (!forcedType && s.phase !== "explaining") return;
-    if (!forcedType && !s.answer_submission_team_key) return;
+    if (s.phase !== "explaining" || !s.answer_submission_team_key) return;
 
-    let winnerIdx = s.answer_submission_team_key
-      ? tms.findIndex((t) => t.team_key === s.answer_submission_team_key)
-      : -1;
-    if (winnerIdx < 0 || !tms[winnerIdx]) {
-      winnerIdx = Number.isInteger(s.answering_team_idx) ? s.answering_team_idx % tms.length : 0;
-    }
-
-    let deck = Array.isArray(s.effect_deck) ? s.effect_deck : [];
-    let cursor = s.effect_cursor ?? 0;
-    if (cursor >= deck.length) {
-      deck = shuffle(deck.length ? deck : createShuffledEffectDeck());
-      cursor = 0;
-    }
-    if (forcedType) {
-      let matchIdx = deck.findIndex((e, i) => i >= cursor && e.type === forcedType);
-      if (matchIdx < 0) matchIdx = deck.findIndex((e) => e.type === forcedType);
-      if (matchIdx < 0) return;
-      deck = [...deck];
-      [deck[cursor], deck[matchIdx]] = [deck[matchIdx], deck[cursor]];
-    }
-    const effect = deck[cursor];
+    const winnerIdx = tms.findIndex((t) => t.team_key === s.answer_submission_team_key);
+    const effectDef = EFFECT_DEFINITIONS.find((d) => d.type === "points");
 
     if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
     setRevealingEffect(true);
     revealTimerRef.current = setTimeout(() => setRevealingEffect(false), REVEAL_TOTAL_MS);
     setDrawSeq((n) => n + 1);
-
-    // Sound: tiếng rút lá ngay khi bấm, tiếng lật đúng lúc mặt trước hé mở,
-    // kèm stinger riêng cho hai hiệu ứng "chấn động" (mất hết điểm / reset).
     playSound("effect-draw");
     if (flipSoundTimerRef.current) clearTimeout(flipSoundTimerRef.current);
-    flipSoundTimerRef.current = setTimeout(() => {
-      playSound("card-flip");
-      if (effect.type === "lose_all") {
-        setTimeout(() => playSound("meme-vine-boom"), 350);
-      } else if (effect.type === "reset") {
-        setTimeout(() => playSound("meme-bell"), 350);
-      }
-    }, FLIP_AT_MS);
+    flipSoundTimerRef.current = setTimeout(() => playSound("card-flip"), FLIP_AT_MS);
 
     const patch = {
       ...s,
       phase: "resolving_effect",
       show_effect: true,
-      effect_type: effect.type,
-      effect_icon: effect.icon,
-      effect_label: effect.label,
-      effect_desc: effect.desc,
-      effect_team_idx: winnerIdx,
+      show_dice: true,
+      effect_type: "points_base",
+      effect_icon: effectDef?.icon ?? "🎲",
+      effect_label: "Rút Điểm May Mắn",
+      effect_desc: effectDef?.desc ?? "Tung xúc xắc để nhận điểm.",
+      effect_team_idx: winnerIdx < 0 ? 0 : winnerIdx,
       effect_result: null,
       effect_revealed: false,
       show_eff_continue: false,
-      eff_body_buttons: null,
-      effect_deck: deck,
-      effect_cursor: cursor + 1,
+      eff_body_buttons: "dice",
       revision: s.revision + 1,
     };
-
-    let nextTeams = tms;
-    if (effect.type === "points" || effect.type === "dice_subtract") {
-      patch.eff_body_buttons = "dice";
-      patch.show_dice = true; // Show dice modal immediately when drawn
-    } else if (effect.type === "lose_all") {
-      nextTeams = loseAllScore(tms, winnerIdx);
-      patch.effect_result = `${tms[winnerIdx]?.name} mất hết điểm!`;
-      patch.show_eff_continue = true;
-    } else if (effect.type === "reset") {
-      nextTeams = resetScores(tms);
-      patch.effect_result = "Điểm của tất cả các đội đã reset về 0!";
-      patch.show_eff_continue = true;
-    } else if (effect.type === "steal") {
-      patch.eff_body_buttons = "steal";
-    } else if (effect.type === "swap") {
-      patch.eff_body_buttons = "swap";
-    }
-
-    try {
-      if (nextTeams !== tms) await saveTeams(gameId, nextTeams);
-      await saveGameState(gameId, s.revision, patch, s);
-    } catch (err) {
-      handleSaveConflict(err);
-    }
+    saveGameState(gameId, s.revision, patch, s).catch(handleSaveConflict);
   };
 
   const confirmAndContinueDice = useCallback(async () => {
     const s = stateRef.current;
     const tms = teamsRef.current;
     if (!s || !s.show_dice) return;
-    
+
     // Apply points
     const idx = s.effect_team_idx;
     const isSub = s.effect_type === "dice_subtract";
     const nextTeams = isSub ? subtractDiceScore(tms, idx, s.dice_value) : addDiceScore(tms, idx, s.dice_value);
-    
-    // Move to next turn
-    const nextState = closeCard(s, nextTeams, idx); 
-    
+
     try {
       await saveTeams(gameId, nextTeams);
-      await saveGameState(gameId, s.revision, nextState, s);
+      if (s.effect_type === "points_base") {
+        // TẦNG 2 — 50/50 ngẫu nhiên chỉ để quyết định "Cơ Hội May Mắn" có
+        // xuất hiện hay không. Nếu có, đội (hoặc Host) sẽ CHỌN chứ không
+        // random giữa +200đ và bốc lá phép (xem offerBonusChoice).
+        if (Math.random() < 0.5) {
+          await saveGameState(gameId, s.revision, closeCard(s, nextTeams), s);
+        } else {
+          await offerBonusChoice();
+        }
+      } else {
+        // Xúc xắc này đến từ 1 lá "rút điểm/trừ điểm" bốc được ở Tầng 2 —
+        // đóng lá luôn, không xét lại Tầng 2 (chỉ 1 lần/câu trả lời đúng).
+        await saveGameState(gameId, s.revision, closeCard(s, nextTeams), s);
+      }
     } catch (err) {
       handleSaveConflict(err);
     }
-  }, [gameId, handleSaveConflict]);
+  }, [gameId, handleSaveConflict, offerBonusChoice]);
 
-  // Winning team keeps the right to select the next card.
+  // Đội được chọn lá tiếp theo luôn xoay vòng cố định (xem closeCard) — thắng
+  // hiệu ứng không còn nghĩa là được chơi tiếp.
   const continueAfterEffect = async () => {
     const s = stateRef.current;
     const tms = teamsRef.current;
     if (!s) return;
-    const next = closeCard(s, tms, s.effect_team_idx);
+    const next = closeCard(s, tms);
     if (pendingFx) {
       playSound(pendingFx.type === "steal" ? "steal" : "meme-money");
       setScoreFx(pendingFx);
@@ -718,6 +860,19 @@ export default function Host() {
     }
     try {
       await saveGameState(gameId, s.revision, next, s);
+    } catch (err) {
+      handleSaveConflict(err);
+    }
+  };
+
+  // Nút "Tiếp tục" khi ở phase closing_card (cả 3 đội đều sai / hết giờ, đáp
+  // án đúng đã được tiết lộ) — không có hiệu ứng gì để bốc, chỉ đóng lá.
+  const continueAfterReveal = async () => {
+    const s = stateRef.current;
+    const tms = teamsRef.current;
+    if (!s) return;
+    try {
+      await saveGameState(gameId, s.revision, closeCard(s, tms), s);
     } catch (err) {
       handleSaveConflict(err);
     }
@@ -954,13 +1109,23 @@ export default function Host() {
           </button>
           <details className="test-effects">
             <summary>🧪 Test hiệu ứng (bốc lá chỉ định)</summary>
+            {/* pickAndApplyEffect không tự canh phase (nó cần chạy được giữa
+                Tầng 2 khi phase đã là resolving_effect) — nút test phải tự
+                canh lấy, chỉ cho bốc khi không có vòng nào đang dở dang, nếu
+                không Host bấm nhầm lúc đang mở câu hỏi sẽ đè mất state. */}
+            {state.phase !== "selecting_card" && state.phase !== "explaining" && (
+              <div className="hint" style={{ marginTop: 8 }}>
+                Chỉ dùng được khi chưa mở câu hỏi hoặc vừa trả lời đúng (không dùng giữa lượt đang dở dang).
+              </div>
+            )}
             <div className="test-grid">
               {EFFECT_DEFINITIONS.map((def) => (
                 <button
                   key={def.type}
                   type="button"
                   className="host-btn ghost"
-                  onClick={() => drawEffect(def.type)}
+                  disabled={state.phase !== "selecting_card" && state.phase !== "explaining"}
+                  onClick={() => pickAndApplyEffect(def.type)}
                 >
                   {def.icon} {def.label}
                 </button>
@@ -968,9 +1133,10 @@ export default function Host() {
             </div>
           </details>
           <div className="hint">
-            Đội tới lượt chọn 1 lá bài số, sau đó chọn 1 trong 4 đáp án trên thiết bị của mình. Trả lời đúng → bốc 1
-            lá bài may mắn, đội đó tiếp tục lượt. Trả lời sai → quyền trả lời chuyển sang đội tiếp theo; nếu 3 đáp án
-            sai, lá bài bị bỏ (không hiện đáp án, không hiệu ứng) và đội kế tiếp được chọn lá bài mới.
+            Đội tới lượt chọn 1 lá bài số, sau đó chọn 1 trong 4 đáp án trên thiết bị của mình. Trả lời đúng → luôn
+            tung xúc xắc nhận điểm, có 50% thêm cơ hội chọn nhận 200đ hoặc thử vận may bốc 1 lá phép. Trả lời sai →
+            quyền trả lời chuyển sang đội tiếp theo; nếu 3 đáp án sai (hoặc hết giờ), đáp án đúng được tiết lộ. Sau
+            mỗi lượt, quyền chọn lá bài mới luôn xoay vòng sang đội kế tiếp theo thứ tự cố định.
           </div>
         </div>
       </div>
@@ -1022,8 +1188,16 @@ export default function Host() {
 
             {state.phase === "explaining" && state.answer_submission_team_key && (
               <div className="card-actions">
-                <button className="host-btn" onClick={() => drawEffect()}>
-                  Bốc lá bài may mắn
+                <button className="host-btn" onClick={startGuaranteedDiceRoll}>
+                  Tung xúc xắc may mắn
+                </button>
+              </div>
+            )}
+
+            {state.phase === "closing_card" && (
+              <div className="card-actions">
+                <button className="host-btn" onClick={continueAfterReveal}>
+                  Tiếp tục
                 </button>
               </div>
             )}
@@ -1042,9 +1216,11 @@ export default function Host() {
           teamName={teams[state.effect_team_idx]?.name}
           animate={revealingEffect}
           onContinue={continueAfterEffect}
-          onPickTarget={(targetIdx) =>
-            state.eff_body_buttons === "steal" ? resolveSteal(targetIdx) : resolveSwap(targetIdx)
-          }
+          onPickTarget={(targetIdx) => {
+            if (state.eff_body_buttons === "steal") return resolveSteal(targetIdx);
+            if (state.eff_body_buttons === "swap") return resolveSwap(targetIdx);
+            return resolveBonusChoice(targetIdx);
+          }}
           onRollDice={rollDice}
           onConfirmDice={confirmAndContinueDice}
         />

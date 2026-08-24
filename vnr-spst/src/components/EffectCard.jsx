@@ -94,7 +94,7 @@ function DiceCube({ state }) {
       <div className="dice-wrapper" ref={wrapperRef}>
         <div className="dice-cube" ref={cubeRef}>
           <div className="dice-face front">100</div>
-          <div className="dice-face back">1000</div>
+          <div className="dice-face back">400</div>
           <div className="dice-face right">500</div>
           <div className="dice-face left">200</div>
           <div className="dice-face top">300</div>
@@ -129,6 +129,7 @@ export default function EffectCard({
   const diceHasResult = state.eff_body_buttons === "dice" && state.dice_result_visible;
   const needsTarget =
     (state.eff_body_buttons === "steal" || state.eff_body_buttons === "swap") && !resolved;
+  const needsBonusChoice = state.eff_body_buttons === "bonus_choice" && !resolved;
   const fxColor = EFFECT_COLORS[state.effect_type] ?? '#c9a227';
 
   // ✕ chỉ ẩn tạm khi chưa có kết quả; khi xúc xắc tung hoặc đội chọn mục tiêu
@@ -243,6 +244,22 @@ export default function EffectCard({
                               </button>
                             )
                         )}
+                      </div>
+                    </>
+                  )}
+
+                  {needsBonusChoice && (
+                    <>
+                      <div className="er-hint">
+                        Đang chờ Đội {teamName} chọn trên điện thoại — hoặc chọn hộ:
+                      </div>
+                      <div className="er-targets">
+                        <button type="button" className="host-btn ghost" onClick={() => onPickTarget(0)}>
+                          Nhận chắc +200đ
+                        </button>
+                        <button type="button" className="host-btn ghost" onClick={() => onPickTarget(1)}>
+                          🍀 Thử vận may — bốc lá phép
+                        </button>
                       </div>
                     </>
                   )}

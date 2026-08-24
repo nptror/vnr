@@ -66,33 +66,60 @@
     └───────┬───────┘       └───────┬───────┘
             ▼                       ▼
 ┌──────────────────┐    ┌──────────────────────────────┐
-│ Hiện giải thích   │    │ Lượt chuyển sang đội KẾ TIẾP  │
-│ + Bốc lá hiệu ứng │    │ trong thứ tự vòng tròn         │
-│ (bài may mắn 🎲)  │    │                                │
-│                    │    │ ⚠️ Nếu 3 đáp án sai liên tiếp  │
-│ Đội trả lời đúng   │    │ → BỎ câu hỏi (không hiện đáp │
-│ TIẾP TỤC LƯỢT     │    │   án, không hiệu ứng)          │
-└──────────────────┘    │ → Đội tiếp theo được quyền     │
-                         │   CHỌN CÂU HỎI MỚI           │
+│ Hiện giải thích   │    │ Lượt trả lời chuyển sang đội  │
+│ + Tung xúc xắc    │    │ KẾ TIẾP trong thứ tự vòng tròn │
+│ nhận điểm + có    │    │                                │
+│ thể thêm Cơ Hội   │    │ ⚠️ Nếu 3 đáp án sai liên tiếp  │
+│ May Mắn (mục dưới)│    │ (hoặc hết 15s không ai đúng)   │
+└──────────────────┘    │ → TIẾT LỘ đáp án đúng, không   │
+                         │   có hiệu ứng gì                │
                          └──────────────────────────────┘
+                                       │
+                                       ▼
+            ┌──────────────────────────────────────────┐
+            │ Dù kết quả thế nào, quyền CHỌN LÁ BÀI MỚI  │
+            │ luôn chuyển cho đội KẾ TIẾP theo thứ tự cố  │
+            │ định (1→2→3→...) — thắng KHÔNG có nghĩa      │
+            │ được chọn câu tiếp theo.                    │
+            └──────────────────────────────────────────┘
 ```
 
 ---
 
-## 🎲 Bài hiệu ứng may mắn (Effect Cards)
+## 🎲 Thưởng khi trả lời đúng (2 tầng)
 
-Khi trả lời đúng, đội đó bốc **1 lá bài hiệu ứng** từ bộ 35 lá. Sau đây là các loại:
+Trả lời đúng luôn dẫn tới **Tầng 1** (chắc chắn có), rồi có 50% cơ hội thêm **Tầng 2**:
+
+```
+Trả lời đúng
+   │
+   ▼
+[TẦNG 1 — luôn luôn] Host bấm "Tung xúc xắc may mắn"
+   → tung xúc xắc 3D, CỘNG NGAY điểm theo mặt xúc xắc: 100 / 200 / 300 /
+     400 / 500 / 600 (mỗi mặt 1 giá trị, tăng đều)
+   ▼
+[TẦNG 2 — 50/50 ngẫu nhiên] Có "Cơ Hội May Mắn" xuất hiện không?
+   ├─ 50% KHÔNG → hết lượt, chuyển lượt chọn lá cho đội kế tiếp
+   └─ 50% CÓ → đội đó (trên /play) hoặc Host (chọn hộ) được CHỌN 1 trong 2:
+        ├─ Nhận chắc +200đ, hoặc
+        └─ Thử vận may — bốc 1 trong 6 lá phép bên dưới (theo đúng tỉ lệ),
+           kể cả khi lại ra "rút điểm/trừ điểm" thì tung xúc xắc thêm 1 lần
+           nữa (cùng dải giá trị 100–600) — không xét lại Tầng 2 thêm lần
+           thứ hai trong cùng 1 câu trả lời đúng
+```
+
+### 6 loại lá phép (bốc ở Tầng 2, "Thử vận may")
 
 ### 🎲 Rút Điểm May Mắn (12 lá)
 
 - Tung xúc xắc 3D trên màn hình
-- Kết quả: **+1 đến +5 điểm** (mặt xúc xắc 6 được tính = 5)
+- Kết quả: **+100 đến +600 điểm** theo mặt xúc xắc
 - Xúc xắc có thể được tung từ **Play** (người chơi) hoặc **Host**
 
-### 🎲 Tung Xúc Xắc Trừ Điểm (4 lá)
+### 💸 Tung Xúc Xắc Trừ Điểm (4 lá)
 
 - Tung xúc xắc 3D trên màn hình
-- Kết quả: **-1 đến -5 điểm** (mặt xúc xắc 6 được tính = 5)
+- Kết quả: **-100 đến -600 điểm** theo mặt xúc xắc
 - Điểm không xuống dưới 0
 - Xúc xắc có thể được tung từ **Play** (người chơi) hoặc **Host**
 
@@ -108,21 +135,21 @@ Khi trả lời đúng, đội đó bốc **1 lá bài hiệu ứng** từ bộ 
 
 ### 🗡️ Cướp Điểm (4 lá)
 
-- Chọn **1 đội khác** để cướp **5 điểm**
-- Nếu đội bị cướp có ít hơn 5 điểm → lấy hết
+- Chọn **1 đội khác** để cướp tối đa **500 điểm**
+- Nếu đội bị cướp có ít hơn 500 điểm → lấy hết
 - Host chọn đội nạn nhân trên màn hình
 
 ### 🔄 Đổi Điểm (3 lá)
 
 - Chọn **1 đội khác** để **hoán đổi toàn bộ điểm số**
-- Ví dụ: Đội A có 12 điểm, Đội B có 5 điểm → Đội A becomes 5, Đội B becomes 12
+- Ví dụ: Đội A có 1200 điểm, Đội B có 500 điểm → Đội A còn 500, Đội B thành 1200
 
-### Phân bổ bài hiệu ứng
+### Phân bổ 6 loại lá phép (bốc khi chọn "Thử vận may" ở Tầng 2)
 
 | Loại | Số lá | Tỷ lệ |    
 |------|-------|-------|
 | 🎲 Rút Điểm May Mắn (+) | 12 | 37.5% |
-| 🎲 Tung Xúc Xắc Trừ Điểm (-) | 4 | 12.5% |
+| 💸 Tung Xúc Xắc Trừ Điểm (-) | 4 | 12.5% |
 | 💥 Mất Hết Điểm | 3 | 9.4% |
 | ♻️ Reset Điểm | 3 | 9.4% |
 | 🗡️ Cướp Điểm | 4 | 12.5% |
@@ -152,6 +179,14 @@ kèm tên và màu đội, tự biến mất sau ~3.5 giây. Có cooldown 3 giâ
 - Vì không cần lưu trữ hay đồng bộ chặt, meme drop dùng kênh **Supabase Realtime Broadcast**
   (ephemeral, không qua bảng nào trong DB) thay vì BroadcastChannel — vẫn hoạt động
   xuyên nhiều thiết bị/trình duyệt.
+- Mỗi lần thả, Host phát 1 âm thanh **random trong "túi" âm thanh riêng của nhóm sticker đó**
+  (vd nhóm "Ngạc nhiên" luôn ra tiếng vine-boom, "Buồn bã" luôn ra tiếng chuông trầm) — vừa
+  đúng "vibe" của sticker, vừa giữ được sự bất ngờ nếu 1 nhóm có nhiều âm thanh trong túi.
+  Cấu hình túi âm thanh theo từng nhóm nằm ở `src/config/memes.js` (`soundPool`); 1 sticker
+  riêng lẻ cũng có thể override bằng field `sound` nếu cần khớp âm thanh cố định 1-1.
+- Âm thanh luôn tự cắt đúng lúc sticker biến mất (~3.5 giây, `MEME_LIFETIME` trong
+  `hooks/useMemeDrop.js`) dù file âm thanh gốc dài hơn — tránh tiếng kêu tiếp sau khi hình
+  đã biến mất khỏi màn hình.
 
 ---
 
@@ -209,26 +244,28 @@ Mở PIN 1986
 Host tạo game (7 đội, 35 lá bài xáo)
     │
     ▼
-┌─── Loop: Mỗi lượt ────────────────────────┐
-│                                             │
-│  Đội có quyền chọn lá bài                   │
-│       │                                     │
-│       ▼                                     │
-│  Host click lá bài (1–35)                   │
-│       │                                     │
-│       ▼                                     │
-│  Câu hỏi hiện ra ──► Player chọn đáp án     │
-│       │                                     │
-│       ├── ĐÚNG ──► +0 điểm câu hỏi          │
-│       │           + Bốc bài hiệu ứng        │
-│       │           + random effect           │
-│       │           + Đội tiếp tục lượt       │
-│       │                                     │
-│       └── SAI ──► Lượt chuyển đội kế       │
-│                   + Nếu 3 đáp án sai →      │
-│                     BỎ câu, chọn câu mới   │
-│                                             │
-└─────────────────────────────────────────────┘
+┌─── Loop: Mỗi lượt ────────────────────────────────┐
+│                                                     │
+│  Đội có quyền chọn lá bài (theo thứ tự cố định)     │
+│       │                                             │
+│       ▼                                             │
+│  Host click lá bài (1–35)                           │
+│       │                                             │
+│       ▼                                             │
+│  Câu hỏi hiện ra ──► Player chọn đáp án             │
+│       │                                             │
+│       ├── ĐÚNG ──► Tung xúc xắc, +100..600 điểm     │
+│       │           + 50% thêm Cơ Hội May Mắn          │
+│       │             (chọn +200đ hoặc bốc lá phép)    │
+│       │                                             │
+│       └── SAI ──► Lượt trả lời chuyển đội kế        │
+│                   + Nếu 3 đáp án sai (hoặc hết giờ) │
+│                     → TIẾT LỘ đáp án đúng            │
+│                                                     │
+│  Dù kết quả nào, quyền CHỌN LÁ tiếp theo luôn        │
+│  chuyển cho đội KẾ TIẾP theo thứ tự cố định          │
+│                                                     │
+└─────────────────────────────────────────────────────┘
     │
     ▼
 Khi hết 35 lá → Hiện bảng xếp hạng 🏆

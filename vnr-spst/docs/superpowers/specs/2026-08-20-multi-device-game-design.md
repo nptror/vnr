@@ -97,8 +97,9 @@ FINISHED
 
 Rules:
 
-- A correct answer keeps the winning team as the next card selector.
-- A fully failed card changes card-selection right to the next team in circular order.
+- Card-selection right always rotates to the next team in fixed circular order after a card closes — regardless of who answered correctly. (Superseded 2026-08-24: earlier revisions of this spec had the winning team keep the next card selection; the game's actual intended design always rotates turns.)
+- A correct answer always triggers a guaranteed dice roll for points (100/200/300/400/500/600 by face), then a 50/50 chance of an additional "Cơ Hội May Mắn" — if it appears, the team (or Host on their behalf) chooses between a flat +200 bonus or drawing one of the 6 weighted effect cards (dice/steal/swap/lose-all/reset). This bonus is offered at most once per correct answer.
+- A fully failed card (3 wrong attempts, or the attempt order exhausted, including timeout) reveals the correct option and explanation via `closing_card` before the card closes — it does not draw an effect.
 - Each card can close once only.
 - Score cannot fall below zero.
 - A dice result is generated once by Host and stored before it is shown. Player dice interaction is presentation-only if retained.
@@ -124,8 +125,8 @@ Manual checks are sufficient for this course project:
 1. Host opens a card and every joined device sees its non-empty question and four options.
 2. Only the assigned, active team can submit one answer.
 3. Wrong answer and timeout advance the same turn on every device.
-4. Correct answer enters explanation, draws exactly one effect, updates scores once, and retains the winner's turn.
-5. Validate all six effect types: add points, subtract points, lose all, reset, steal, and swap.
+4. Correct answer enters explanation, always rolls the guaranteed dice, sometimes offers the bonus choice, updates scores accordingly, and hands the next card selection to the next team in fixed order (not the winner).
+5. Validate all six weighted effect types when drawn via the bonus choice: add points, subtract points, lose all, reset, steal, and swap.
 6. Reload Player or Host during an active question, effect, and finished ranking; each restores the current shared state.
 7. Close the final card and confirm ranking appears automatically.
 8. Reset creates a fresh deck, shuffled team order, zero scores, and a synchronized selecting-card phase.

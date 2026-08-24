@@ -766,6 +766,50 @@ export default function Play() {
           </div>
         </div>
       )}
+
+      {/* Popup Cơ Hội May Mắn — chọn nhận chắc 200đ hoặc thử vận may bốc lá phép */}
+      {state?.phase === 'resolving_effect' && isMyEffectTurn && state.eff_body_buttons === 'bonus_choice' && !state.show_eff_continue && state.effect_revealed !== false && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 100,
+          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          animation: 'fadeIn 0.2s ease-out'
+        }}>
+          <div style={{
+            background: '#faf8ff', padding: '2.5rem 1.5rem', borderRadius: '16px',
+            textAlign: 'center', maxWidth: '400px', width: '90%',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.4)',
+            border: '2px solid #5c0c1c'
+          }}>
+            <h2 style={{ margin: '0 0 0.5rem 0', color: '#5c0c1c', fontSize: '28px', fontFamily: "'Noto Serif', serif" }}>
+              {state.effect_icon} {state.effect_label} — {myTeam?.name}
+            </h2>
+            <p style={{ margin: '0 0 2rem 0', color: '#554243', fontSize: '16px' }}>
+              {state.effect_desc}
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px", width: "100%" }}>
+              <button
+                style={{
+                  background: '#3F5D45', border: 'none', color: 'white', padding: "14px",
+                  fontSize: "18px", fontWeight: "bold", borderRadius: "8px", cursor: "pointer"
+                }}
+                onClick={() => handleEffectTarget(0)}
+              >
+                Nhận chắc +200đ
+              </button>
+              <button
+                style={{
+                  background: '#5c0c1c', border: 'none', color: 'white', padding: "14px",
+                  fontSize: "18px", fontWeight: "bold", borderRadius: "8px", cursor: "pointer"
+                }}
+                onClick={() => handleEffectTarget(1)}
+              >
+                🍀 Thử vận may — bốc lá phép
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

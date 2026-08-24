@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 
-const MEME_LIFETIME = 3500 // 3.5 giây rồi fade out
+// 3.5 giây rồi fade out — export để game/sounds.js dùng chung, đảm bảo âm
+// thanh meme drop luôn cắt đúng lúc sticker biến mất khỏi màn hình.
+export const MEME_LIFETIME = 3500
 
 /**
  * Hook để quản lý lifecycle của meme drops.

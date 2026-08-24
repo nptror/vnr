@@ -1,12 +1,12 @@
 // Cube face layout (Host JSX): front=100, top=300, right=500, left=200,
-// bottom=600, back=1000 — matching the DICE_VALUES array in rollDice.
+// bottom=600, back=400 — matching the DICE_VALUES array in Host.jsx.
 const DICE_ROTATIONS = {
   100: [1440, 1440],
   200: [1440, 1530],
   300: [1350, 1440],
+  400: [1440, 1620],
   500: [1440, 1350],
   600: [1530, 1440],
-  1000: [1440, 1620],
 };
 
 export function rotationForDiceValue(value) {
@@ -81,7 +81,10 @@ export function swapScores(teams, firstTeamIndex, secondTeamIndex) {
   });
 }
 
-export function closeCard(state, teams, winnerIndex) {
+// Card-selection right always rotates to the team AFTER whoever opened this
+// card (attempt_order[0]) — fixed round-robin, regardless of who answered
+// correctly. Winning a card no longer grants extra turns; see GAMEPLAY.md.
+export function closeCard(state, teams) {
   const activeCardNum = state.active_card_num;
   const usedCardNumbers = Array.isArray(state.used_card_numbers)
     ? [...state.used_card_numbers]
@@ -96,9 +99,10 @@ export function closeCard(state, teams, winnerIndex) {
   const currentTeamIndex = Number.isInteger(state.answering_team_idx)
     ? state.answering_team_idx
     : 0;
-  const nextSelectorIndex = Number.isInteger(winnerIndex)
-    ? winnerIndex
-    : nextTeamIndex(currentTeamIndex, teams.length);
+  const roundStartIdx = Number.isInteger(state.attempt_order?.[0])
+    ? state.attempt_order[0]
+    : currentTeamIndex;
+  const nextSelectorIndex = nextTeamIndex(roundStartIdx, teams.length);
   const nextSelector = teams[nextSelectorIndex];
 
   return {

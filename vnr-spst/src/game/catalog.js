@@ -281,13 +281,13 @@ export const EFFECT_DEFINITIONS = [
     type: "points",
     icon: "🎲",
     label: "Rút Điểm May Mắn",
-    desc: "Tung xúc xắc để nhận điểm từ 100 đến 1000.",
+    desc: "Tung xúc xắc để nhận điểm từ 100 đến 600.",
   },
   {
     type: "dice_subtract",
     icon: "💸",
     label: "Tung Xúc Xắc Trừ Điểm",
-    desc: "Tung xúc xắc để trừ từ 100 đến 1000 điểm.",
+    desc: "Tung xúc xắc để trừ từ 100 đến 600 điểm.",
   },
   {
     type: "lose_all",
@@ -326,6 +326,12 @@ export const EFFECT_COLORS = {
   reset: "#22293A",
   steal: "#8A4B08",
   swap: "#4A3A6B",
+  // Không phải 1 trong 6 lá phép — dùng cho luồng thưởng 2 tầng của Host
+  // (points_base: xúc xắc Tầng 1 bắt buộc; bonus_choice: màn hình chọn Cơ
+  // Hội May Mắn; flat_bonus: thưởng cố định +200đ khi chọn "nhận chắc").
+  points_base: "#3F5D45",
+  bonus_choice: "#c9a227",
+  flat_bonus: "#c9a227",
 };
 
 export function createShuffledEffectDeck() {

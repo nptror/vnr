@@ -72,7 +72,15 @@ if (typeof document !== "undefined") {
   );
 }
 
-export function playSound(key) {
+// key -> timeout id đang chờ tự cắt tiếng (xem tham số maxDurationMs bên dưới).
+const stopTimers = new Map();
+
+// maxDurationMs (tuỳ chọn): tự động cắt tiếng nếu file dài hơn khoảng thời
+// gian này — dùng cho tiếng meme drop, vì sticker chỉ hiện trên màn hình đúng
+// MEME_LIFETIME (hooks/useMemeDrop.js) trong khi vài file âm thanh (vd
+// meme-bell 4.2s, meme-ack 5s) dài hơn khung đó, nghe rất lệch nếu để kêu
+// tiếp sau khi hình đã biến mất.
+export function playSound(key, maxDurationMs) {
   const def = SOUNDS[key];
   if (!def) return;
   const audio = getAudio(key);
@@ -84,6 +92,15 @@ export function playSound(key) {
   audio.volume = def.volume ?? 1;
   const playing = audio.play();
   if (playing?.catch) playing.catch(() => {});
+
+  clearTimeout(stopTimers.get(key));
+  stopTimers.delete(key);
+  if (maxDurationMs) {
+    stopTimers.set(
+      key,
+      setTimeout(() => stopSound(key), maxDurationMs)
+    );
+  }
 }
 
 // Ngắt sound đang phát (dùng cho tiếng tick đồng hồ khi lượt trả lời kết thúc
@@ -99,6 +116,15 @@ export function stopSound(key) {
   }
 }
 
-export function playRandomMemeSound() {
-  playSound(MEME_KEYS[Math.floor(Math.random() * MEME_KEYS.length)]);
+export function playRandomMemeSound(maxDurationMs) {
+  playSound(MEME_KEYS[Math.floor(Math.random() * MEME_KEYS.length)], maxDurationMs);
+}
+
+// Random 1 âm thanh trong 1 "túi" theo nhóm sticker (xem
+// config/memes.js#getMemeSoundPool) — fallback về random toàn bộ nếu túi
+// rỗng/không xác định (memeId lạ, hoặc quên khai báo soundPool). Truyền
+// maxDurationMs = MEME_LIFETIME để tiếng luôn cắt đúng lúc sticker biến mất.
+export function playMemeSoundFromPool(pool, maxDurationMs) {
+  if (!pool?.length) return playRandomMemeSound(maxDurationMs);
+  playSound(pool[Math.floor(Math.random() * pool.length)], maxDurationMs);
 }
