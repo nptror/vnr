@@ -389,10 +389,18 @@ export default function Host() {
       try {
         let id = localStorage.getItem(HOST_GAME_ID_KEY);
         let pin = null;
+        const wantedPin = localStorage.getItem('vnr_game_pin');
         if (id) {
           try {
             const data = await loadGame(id);
             pin = data.game?.pin ?? null;
+            // A room saved from an earlier session only counts while it still
+            // matches the pin currently chosen on /pin — otherwise the host
+            // would silently resume the old room (and show its old pin).
+            if (wantedPin && pin != null && String(pin) !== String(wantedPin)) {
+              id = null;
+              pin = null;
+            }
           } catch {
             id = null;
           }
