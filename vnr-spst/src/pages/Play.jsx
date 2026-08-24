@@ -2,10 +2,10 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getCardByNumber } from '../game/catalog'
 import { loadGame, subscribeToGame, createCoalescedReloader, submitAnswerEvent, submitDiceRollEvent, submitEffectTargetEvent, sendMemeDrop } from '../game/gameRepository'
+import { readSession } from '../game/session'
 import { isSupabaseConfigured } from '../lib/supabase'
 import MemePanel from '../components/MemePanel.jsx'
 
-const SESSION_KEY = 'vnr_game_session'
 const OPTION_LABELS = ['A', 'B', 'C', 'D']
 const ANSWER_SECONDS = 15
 
@@ -341,29 +341,6 @@ function TurnTimer({ deadlineAt, active }) {
 
   const timerClass = timeLeft > 10 ? 'timer-normal' : timeLeft > 5 ? 'timer-warn' : 'timer-danger'
   return <div className={`team-info-timer ${timerClass}`}>{formatTime(timeLeft)}</div>
-}
-
-function readSession() {
-  const parse = (raw) => {
-    if (!raw) return null
-    try {
-      const parsed = JSON.parse(raw)
-      if (!parsed?.gameId || !parsed?.teamKey) return null
-      return parsed
-    } catch {
-      return null
-    }
-  }
-  const fresh = sessionStorage.getItem(SESSION_KEY)
-  if (fresh) return parse(fresh)
-  const session = parse(localStorage.getItem(SESSION_KEY))
-  if (session) {
-    // Copy into sessionStorage for this tab, but deliberately keep the
-    // localStorage copy (don't remove it) — it's the durable fallback that
-    // lets this device recover again if the tab gets killed a second time.
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session))
-  }
-  return session
 }
 
 export default function Play() {

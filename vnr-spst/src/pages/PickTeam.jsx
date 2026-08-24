@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { findGameByPin, joinGame, fetchTeams, subscribeToGame, createCoalescedReloader } from '../game/gameRepository'
+import { readSession, saveSession } from '../game/session'
 import { isSupabaseConfigured } from '../lib/supabase'
-
-const SESSION_KEY = 'vnr_game_session'
 
 const TEAMS = [
     {
@@ -71,6 +70,11 @@ export default function PickTeam() {
     const [joining, setJoining] = useState(false)
     const [gameId, setGameId] = useState(null)
     const [dbTeams, setDbTeams] = useState([])
+    // Read once: an already-joined session for THIS browser/device, if any —
+    // used to offer "continue" instead of showing the player's own team as a
+    // dead-end greyed-out card if they land back on this page (e.g. hit the
+    // browser back button right after joining).
+    const [existingSession] = useState(readSession)
 
     // Find the active room for this PIN once, then keep polling/subscribing
     // for its team rows so "already taken" greys out live as others join —
@@ -128,12 +132,7 @@ export default function PickTeam() {
             }
             // By default, the team code is equal to the team id (e.g. 'red')
             const { gameId: joinedGameId, teamKey } = await joinGame(game.id, team.id, team.id)
-            const sessionPayload = JSON.stringify({ gameId: joinedGameId, teamKey })
-            sessionStorage.setItem(SESSION_KEY, sessionPayload)
-            // Also persist to localStorage (survives a closed/killed tab, unlike
-            // sessionStorage) so this device can recover its own team on /play
-            // instead of finding it greyed out as "already taken" here.
-            localStorage.setItem(SESSION_KEY, sessionPayload)
+            saveSession({ gameId: joinedGameId, teamKey })
             navigate('/play')
         } catch (err) {
             setError(err.message || 'Không thể tham gia. Kiểm tra lại cấu hình hoặc liên hệ Host.')
@@ -335,6 +334,29 @@ export default function PickTeam() {
                     </header>
 
 
+
+                    {existingSession && gameId && existingSession.gameId === gameId && (
+                        <div
+                            style={{
+                                marginBottom: 24, textAlign: 'center', padding: '1rem 1.5rem',
+                                border: '2px solid #7a2430', background: '#fdfbf7', maxWidth: 480,
+                            }}
+                        >
+                            <p style={{ margin: '0 0 0.75rem', fontSize: 15 }}>
+                                Bạn đã tham gia đội{' '}
+                                <strong>{TEAMS.find((t) => t.id === existingSession.teamKey)?.name ?? existingSession.teamKey}</strong>{' '}
+                                trong ván này rồi.
+                            </p>
+                            <button
+                                type="button"
+                                className="pt-join-btn"
+                                style={{ backgroundColor: '#7a2430', borderColor: '#7a2430', width: 'auto', padding: '0.6rem 1.5rem' }}
+                                onClick={() => navigate('/play')}
+                            >
+                                TIẾP TỤC VÀO VÁN CHƠI
+                            </button>
+                        </div>
+                    )}
 
                     {!isSupabaseConfigured && (
                         <div className="pt-modal-error" style={{ marginBottom: 24, textAlign: 'center' }}>
