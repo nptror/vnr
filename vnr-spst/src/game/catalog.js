@@ -285,7 +285,7 @@ export const EFFECT_DEFINITIONS = [
   },
   {
     type: "dice_subtract",
-    icon: "🎲",
+    icon: "💸",
     label: "Tung Xúc Xắc Trừ Điểm",
     desc: "Tung xúc xắc để trừ từ 100 đến 1000 điểm.",
   },
@@ -316,6 +316,17 @@ export const EFFECT_DEFINITIONS = [
 ];
 
 export const EFFECT_CARD_DEFINITIONS = buildEffectDefs();
+
+// Màu nhận diện từng loại hiệu ứng — dùng chung cho chú giải Host, banner
+// trên lá bài lật và mọi nơi cần phân biệt nhanh 6 loại hiệu ứng.
+export const EFFECT_COLORS = {
+  points: "#3F5D45",
+  dice_subtract: "#9B2335",
+  lose_all: "#B4B2A9",
+  reset: "#22293A",
+  steal: "#8A4B08",
+  swap: "#4A3A6B",
+};
 
 export function createShuffledEffectDeck() {
   return shuffle(EFFECT_CARD_DEFINITIONS);

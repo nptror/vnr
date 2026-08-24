@@ -670,8 +670,8 @@ export default function Play() {
         </footer>
       </div>
 
-      {/* Popup Roll Dice for Active Team */}
-      {state?.phase === 'resolving_effect' && isMyEffectTurn && state.eff_body_buttons === 'dice' && (
+      {/* Popup Roll Dice for Active Team — chỉ hiện sau khi Host lật xong lá bài */}
+      {state?.phase === 'resolving_effect' && isMyEffectTurn && state.eff_body_buttons === 'dice' && state.effect_revealed !== false && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 100,
           background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
@@ -718,8 +718,8 @@ export default function Play() {
         </div>
       )}
 
-      {/* Popup Steal/Swap for Active Team */}
-      {state?.phase === 'resolving_effect' && isMyEffectTurn && (state.eff_body_buttons === 'steal' || state.eff_body_buttons === 'swap') && !state.show_eff_continue && (
+      {/* Popup Steal/Swap for Active Team — chỉ hiện sau khi Host lật xong lá bài */}
+      {state?.phase === 'resolving_effect' && isMyEffectTurn && (state.eff_body_buttons === 'steal' || state.eff_body_buttons === 'swap') && !state.show_eff_continue && state.effect_revealed !== false && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 100,
           background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',

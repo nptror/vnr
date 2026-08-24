@@ -4,6 +4,8 @@ import {
   CAT_NAME,
   createShuffledCardDeck,
   createShuffledEffectDeck,
+  EFFECT_COLORS,
+  EFFECT_DEFINITIONS,
   getCardByNumber,
   shuffle,
 } from "../game/catalog";
@@ -15,7 +17,6 @@ import {
   resetScores,
   stealUpToFive,
   swapScores,
-  rotationForDiceValue,
 } from "../game/transitions";
 import {
   createGame,
@@ -32,7 +33,7 @@ import {
 import { isSupabaseConfigured } from "../lib/supabase";
 import MemeDrop from "../components/MemeDrop.jsx";
 import ScoreFx from "../components/ScoreFx.jsx";
-import EffectReveal, { REVEAL_TOTAL_MS } from "../components/EffectReveal.jsx";
+import EffectCard, { REVEAL_TOTAL_MS } from "../components/EffectCard.jsx";
 import { useMemeDrop } from "../hooks/useMemeDrop.js";
 import "./Host.css";
 
@@ -44,139 +45,6 @@ const MAX_WRONG_BEFORE_ABANDON = 3;
 function computeDeadlineAt() {
   return new Date(Date.now() + ANSWER_SECONDS * 1000).toISOString();
 }
-
-/* ─── Dice Modal Styles (injected once) ─── */
-const DICE_STYLE = `
-  .dice-overlay {
-    position: fixed; inset: 0; z-index: 70;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(20,16,10,0.6);
-    padding: 20px;
-  }
-  .dice-overlay.hidden { display: none; }
-  .dice-modal {
-    background: #fdfbf7;
-    border: 3px double #141b2c;
-    border-radius: 4px;
-    padding: 2.5rem;
-    max-width: 420px; width: 100%;
-    display: flex; flex-direction: column; align-items: center;
-    position: relative;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    transform: rotate(-0.4deg);
-  }
-  .dice-modal-title {
-    font-family: 'Noto Serif', serif;
-    font-size: 13px; font-weight: 700;
-    letter-spacing: 0.1em; text-transform: uppercase;
-    color: #554243;
-    margin-bottom: 2rem;
-    border-bottom: 0.5px solid #887272;
-    padding-bottom: 0.5rem;
-    width: 100%; text-align: center;
-  }
-  .dice-close-btn {
-    position: absolute; top: 1rem; right: 1rem;
-    background: none; border: none; cursor: pointer;
-    color: #887272; font-size: 20px; line-height: 1;
-    transition: color 0.15s;
-  }
-  .dice-close-btn:hover { color: #5c0c1c; }
-  .dice-scene {
-    perspective: 1000px;
-    width: 96px; height: 96px;
-    margin-bottom: 3rem;
-    position: relative;
-  }
-  .dice-wrapper {
-    width: 100%; height: 100%; position: absolute;
-  }
-  .dice-cube {
-    width: 100%; height: 100%; position: absolute;
-    transform-style: preserve-3d;
-    transition: transform 1500ms ease-out;
-  }
-  .dice-face {
-    position: absolute;
-    width: 96px; height: 96px;
-    background-color: #faf8ff;
-    border: 2px solid #141b2c;
-    border-radius: 12px;
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'Courier New', monospace;
-    font-size: 28px; font-weight: bold;
-    color: #141b2c;
-    text-shadow: 1px 1px 0 rgba(0,0,0,0.4), -0.5px -0.5px 0 rgba(0,0,0,0.2);
-    box-shadow: inset 0 0 15px rgba(0,0,0,0.05);
-  }
-  .dice-face.front  { transform: rotateY(  0deg) translateZ(48px); }
-  .dice-face.back   { transform: rotateY(180deg) translateZ(48px); }
-  .dice-face.right  { transform: rotateY( 90deg) translateZ(48px); }
-  .dice-face.left   { transform: rotateY(-90deg) translateZ(48px); }
-  .dice-face.top    { transform: rotateX( 90deg) translateZ(48px); }
-  .dice-face.bottom { transform: rotateX(-90deg) translateZ(48px); }
-  .dice-shadow {
-    position: absolute; bottom: -1.5rem; left: 50%;
-    transform: translateX(-50%);
-    width: 80px; height: 16px;
-    background: rgba(0,0,0,0.2);
-    border-radius: 50%;
-    filter: blur(4px);
-  }
-  @keyframes dice-bounce {
-    0%   { transform: translate(-120px,-80px) scale(0.6); }
-    20%  { transform: translate(100px,60px) scale(1.1); }
-    45%  { transform: translate(-60px,-40px) scale(0.85); }
-    70%  { transform: translate(40px,30px) scale(1.05); }
-    85%  { transform: translate(-15px,-15px) scale(0.95); }
-    100% { transform: translate(0,0) scale(1); }
-  }
-  @keyframes shadow-pulse {
-    0%   { transform: translateX(-50%) scale(0.6); opacity: 0.1; }
-    20%  { transform: translateX(-50%) scale(1.1); opacity: 0.05; }
-    45%  { transform: translateX(-50%) scale(0.85); opacity: 0.15; }
-    70%  { transform: translateX(-50%) scale(1.05); opacity: 0.08; }
-    85%  { transform: translateX(-50%) scale(0.95); opacity: 0.12; }
-    100% { transform: translateX(-50%) scale(1); opacity: 0.1; }
-  }
-  .dice-bouncing { animation: dice-bounce 1.5s cubic-bezier(0.25,1,0.5,1) forwards; }
-  .shadow-rolling { animation: shadow-pulse 1.5s cubic-bezier(0.25,1,0.5,1) forwards; }
-  .dice-roll-btn {
-    background: #7a2430; color: #fff;
-    font-family: 'Noto Serif', serif;
-    font-size: 20px; font-weight: 700;
-    letter-spacing: 0.1em; text-transform: uppercase;
-    padding: 0.75rem 2.5rem;
-    border: none; border-radius: 0; cursor: pointer;
-    transition: transform 0.15s, box-shadow 0.15s;
-    z-index: 10; position: relative;
-  }
-  .dice-roll-btn:hover { transform: translateY(2px); box-shadow: 0 0 0 2px #141b2c; }
-  .dice-roll-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-  .dice-result {
-    margin-top: 1.5rem; height: 2rem;
-    display: flex; align-items: center; justify-content: center;
-    gap: 0.5rem; z-index: 10;
-    transition: opacity 0.3s;
-    font-family: 'Noto Serif', serif;
-  }
-  .dice-result.hidden-result { opacity: 0; }
-  .dice-result-num {
-    font-size: 32px; font-weight: 700; color: #7a2430; line-height: 1;
-  }
-  .dice-result-text { font-size: 18px; font-weight: 600; color: #141b2c; }
-  .dice-confirm-btn {
-    margin-top: 1rem;
-    background: transparent; color: #141b2c;
-    font-family: 'Noto Serif', serif;
-    font-size: 13px; font-weight: 700;
-    letter-spacing: 0.1em; text-transform: uppercase;
-    padding: 0.5rem 2rem;
-    border: 1px solid #887272; border-radius: 0; cursor: pointer;
-    transition: background 0.15s;
-  }
-  .dice-confirm-btn:hover { background: #f1e7cf; }
-`;
 
 // Wrong answer → next attempt, unless 3 options have been marked wrong or the
 // attempt order is exhausted, in which case the card is abandoned entirely:
@@ -259,81 +127,6 @@ function computeTimeoutAdvance(state, teams) {
   };
 }
 
-// Effect-card announcement overlay. Stays up while waiting for the active
-// team to act; once the outcome is saved (show_eff_continue) it auto-hides
-// after 4s, and a manual close button is available meanwhile. The parent
-// renders it with `key={state.revision}`, so the remount that happens when
-// the team's choice is saved brings it back showing the result.
-function EffectCardOverlay({ state, teamName, teams, onContinue, onPickTarget }) {
-  const [dismissed, setDismissed] = useState(false);
-
-  useEffect(() => {
-    if (!state.show_eff_continue) return undefined;
-    const id = setTimeout(() => setDismissed(true), 4000);
-    return () => clearTimeout(id);
-  }, [state.show_eff_continue]);
-
-  if (dismissed) return null;
-
-  const needsTarget =
-    (state.eff_body_buttons === "steal" || state.eff_body_buttons === "swap") && !state.show_eff_continue;
-
-  return (
-    <div className="overlay show">
-      <div className="effect-card" style={{ position: "relative" }}>
-        {!state.show_eff_continue && (
-          <button
-            type="button"
-            aria-label="Đóng"
-            onClick={() => setDismissed(true)}
-            style={{ position: "absolute", top: 10, right: 12, background: "none", border: "none", fontSize: 22, lineHeight: 1, cursor: "pointer", color: "#887272" }}
-          >
-            ✕
-          </button>
-        )}
-        <div className="eff-target">
-          Đội {teamName} bốc được:
-        </div>
-        <div className="eff-label">
-          {state.effect_icon} {state.effect_label}
-        </div>
-        <div className="eff-desc">{state.effect_desc}</div>
-        <div className="eff-body">
-          {needsTarget && (
-            <>
-              <div style={{ marginTop: '1rem', fontStyle: 'italic', color: '#887272', fontSize: '16px' }}>
-                Đang chờ Đội {teamName} chọn đội mục tiêu trên điện thoại — hoặc chọn hộ nếu đội không có thiết bị:
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px', width: '100%', marginTop: '0.75rem' }}>
-                {teams.map(
-                  (t, i) =>
-                    i !== state.effect_team_idx && (
-                      <button
-                        key={t.team_key}
-                        type="button"
-                        style={{
-                          background: t.color, border: 'none', color: '#fff', padding: '10px',
-                          fontSize: '15px', fontWeight: 'bold', borderRadius: '6px', cursor: 'pointer',
-                        }}
-                        onClick={() => onPickTarget(i)}
-                      >
-                        {state.eff_body_buttons === "steal" ? `Cướp hộ từ ${t.name} (${t.score}đ)` : `Đổi hộ với ${t.name} (${t.score}đ)`}
-                      </button>
-                    )
-                )}
-              </div>
-            </>
-          )}
-          {state.effect_result && <div style={{ marginTop: 12, fontWeight: 600 }}>{state.effect_result}</div>}
-        </div>
-        <button className="host-btn" style={{ marginTop: 14 }} onClick={onContinue}>
-          Tiếp tục
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export default function Host() {
   const [gameId, setGameId] = useState(null);
   const [gamePin, setGamePin] = useState(null);
@@ -350,10 +143,6 @@ export default function Host() {
   const stateRef = useRef(null);
   const teamsRef = useRef([]);
   const processedEventIds = useRef(new Set());
-  const cubeRef = useRef(null);
-  const wrapperRef = useRef(null);
-  const shadowRef = useRef(null);
-
   const { activeMemes, addMeme } = useMemeDrop();
 
   // ScoreFx — animation điểm số (swap/steal), chỉ hiển thị trên Host.
@@ -364,11 +153,17 @@ export default function Host() {
     return () => clearTimeout(id);
   }, [scoreFx]);
 
+  // Animation cướp/đổi điểm KHÔNG chiếu ngay khi chọn mục tiêu mà chờ host
+  // bấm "Tiếp tục" trên lá bài — khán phòng đọc xong kết quả rồi mới xem
+  // hiệu ứng điểm bay trên bảng.
+  const [pendingFx, setPendingFx] = useState(null);
+
   // Suspense card-flip reveal: bật khi host bốc lá (drawEffect là nơi duy nhất
-  // chuyển show_effect false→true). Trong lúc phát, dice modal và
-  // EffectCardOverlay bị che/hoãn để cả phòng chỉ thấy lá bài úp lật dần.
+  // chuyển show_effect false→true). EffectCard dùng nó để biết lần mount này
+  // có chơi animation lật bài hay không (reload giữa chừng thì không phát lại).
   const [revealingEffect, setRevealingEffect] = useState(false);
   const revealTimerRef = useRef(null);
+  const [drawSeq, setDrawSeq] = useState(0);
 
   useEffect(() => {
     stateRef.current = state;
@@ -410,6 +205,29 @@ export default function Host() {
     },
     [reload]
   );
+
+  // Mở khoá thao tác hiệu ứng cho điện thoại người chơi: khi animation lật bài
+  // kết thúc (revealingEffect về false) mà cờ effect_revealed chưa bật thì lưu
+  // lên Supabase. Cũng phủ cả trường hợp host reload giữa chừng — lá không lật
+  // lại nhưng cờ vẫn được mở ngay nên Play không bị kẹt.
+  useEffect(() => {
+    if (!state?.show_effect || state.effect_revealed !== false || revealingEffect) return undefined;
+    const id = setTimeout(async () => {
+      const cur = stateRef.current;
+      if (!cur?.show_effect || cur.effect_revealed !== false) return;
+      try {
+        await saveGameState(
+          gameId,
+          cur.revision,
+          { ...cur, effect_revealed: true, revision: cur.revision + 1 },
+          cur
+        );
+      } catch (err) {
+        handleSaveConflict(err);
+      }
+    }, 250);
+    return () => clearTimeout(id);
+  }, [state?.show_effect, state?.effect_revealed, revealingEffect, gameId, handleSaveConflict]);
 
   // Bootstrap: resume or create a game.
   useEffect(() => {
@@ -571,7 +389,7 @@ export default function Host() {
         eff_body_buttons: null,
         revision: s.revision + 1,
       }, s);
-      setScoreFx({
+      setPendingFx({
         key: Date.now(),
         type: "steal",
         amount,
@@ -598,7 +416,7 @@ export default function Host() {
         eff_body_buttons: null,
         revision: s.revision + 1,
       }, s);
-      setScoreFx({
+      setPendingFx({
         key: Date.now(),
         type: "swap",
         a: { name: tms[fromIdx]?.name, color: tms[fromIdx]?.color, before: tms[fromIdx]?.score ?? 0, after: nextTeams[fromIdx]?.score ?? 0 },
@@ -694,67 +512,6 @@ export default function Host() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.deadline_at, state?.phase, gameId, handleSaveConflict]);
 
-  // Dice cube animation reacts to shared state. The dice_rolling frame only
-  // exists in the DB for ~1.5s; on slow/poll-only connections (dead realtime
-  // socket) the host may first observe the state AFTER the result flip, so a
-  // short replay bounce is fired for unseen results instead of nothing.
-  const rollingSeenRef = useRef(null);
-  const replayedValueRef = useRef(null);
-  const replayTimerRef = useRef(null);
-  useEffect(() => {
-    if (!state) return undefined;
-    if (state.dice_rolling) {
-      rollingSeenRef.current = state.dice_value;
-      const [rx, ry] = rotationForDiceValue(state.dice_value);
-      if (cubeRef.current) {
-        cubeRef.current.style.transition = "none";
-        cubeRef.current.style.transform = "rotateX(0deg) rotateY(0deg)";
-        void cubeRef.current.offsetHeight;
-        cubeRef.current.style.transition = "";
-      }
-      if (wrapperRef.current) wrapperRef.current.classList.add("dice-bouncing");
-      if (shadowRef.current) shadowRef.current.classList.add("shadow-rolling");
-      requestAnimationFrame(() => {
-        if (cubeRef.current) cubeRef.current.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
-      });
-    } else {
-      if (wrapperRef.current) wrapperRef.current.classList.remove("dice-bouncing");
-      if (shadowRef.current) shadowRef.current.classList.remove("shadow-rolling");
-
-      if (state.dice_value == null) {
-        rollingSeenRef.current = null;
-        replayedValueRef.current = null;
-      } else if (
-        state.dice_result_visible &&
-        replayedValueRef.current !== state.dice_value &&
-        rollingSeenRef.current !== state.dice_value
-      ) {
-        // Result observed without ever seeing it roll — quick replay bounce.
-        replayedValueRef.current = state.dice_value;
-        const value = state.dice_value;
-        const [rx, ry] = rotationForDiceValue(value);
-        const cube = cubeRef.current;
-        if (cube) {
-          cube.style.transition = "none";
-          cube.style.transform = "rotateX(0deg) rotateY(0deg)";
-          void cube.offsetHeight;
-          cube.style.transitionDuration = "700ms";
-          cube.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
-        }
-        if (wrapperRef.current) wrapperRef.current.classList.add("dice-bouncing");
-        if (shadowRef.current) shadowRef.current.classList.add("shadow-rolling");
-        clearTimeout(replayTimerRef.current);
-        replayTimerRef.current = setTimeout(() => {
-          if (wrapperRef.current) wrapperRef.current.classList.remove("dice-bouncing");
-          if (shadowRef.current) shadowRef.current.classList.remove("shadow-rolling");
-          if (cubeRef.current) cubeRef.current.style.transitionDuration = "";
-        }, 750);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state?.dice_rolling, state?.dice_value]);
-  useEffect(() => () => clearTimeout(replayTimerRef.current), []);
-
   const openCard = async (num) => {
     const s = stateRef.current;
     const tms = teamsRef.current;
@@ -796,13 +553,22 @@ export default function Host() {
     }
   };
 
-  const drawEffect = async () => {
+  // forcedType: dùng bởi panel Test hiệu ứng — ép bốc đúng loại lá chỉ định
+  // (hoán đổi vị trí lá khớp đầu tiên về cursor để bộ bài vẫn tiêu thụ chuẩn)
+  // và bỏ qua điều kiện phase/explaining để test được ở mọi thời điểm.
+  const drawEffect = async (forcedType = null) => {
     const s = stateRef.current;
     const tms = teamsRef.current;
-    if (!s || s.phase !== "explaining") return;
-    if (!s.answer_submission_team_key) return;
-    const winnerIdx = tms.findIndex((t) => t.team_key === s.answer_submission_team_key);
-    if (winnerIdx < 0) return;
+    if (!s || !tms.length) return;
+    if (!forcedType && s.phase !== "explaining") return;
+    if (!forcedType && !s.answer_submission_team_key) return;
+
+    let winnerIdx = s.answer_submission_team_key
+      ? tms.findIndex((t) => t.team_key === s.answer_submission_team_key)
+      : -1;
+    if (winnerIdx < 0 || !tms[winnerIdx]) {
+      winnerIdx = Number.isInteger(s.answering_team_idx) ? s.answering_team_idx % tms.length : 0;
+    }
 
     let deck = Array.isArray(s.effect_deck) ? s.effect_deck : [];
     let cursor = s.effect_cursor ?? 0;
@@ -810,11 +576,19 @@ export default function Host() {
       deck = shuffle(deck.length ? deck : createShuffledEffectDeck());
       cursor = 0;
     }
+    if (forcedType) {
+      let matchIdx = deck.findIndex((e, i) => i >= cursor && e.type === forcedType);
+      if (matchIdx < 0) matchIdx = deck.findIndex((e) => e.type === forcedType);
+      if (matchIdx < 0) return;
+      deck = [...deck];
+      [deck[cursor], deck[matchIdx]] = [deck[matchIdx], deck[cursor]];
+    }
     const effect = deck[cursor];
 
     if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
     setRevealingEffect(true);
     revealTimerRef.current = setTimeout(() => setRevealingEffect(false), REVEAL_TOTAL_MS);
+    setDrawSeq((n) => n + 1);
 
     const patch = {
       ...s,
@@ -826,6 +600,7 @@ export default function Host() {
       effect_desc: effect.desc,
       effect_team_idx: winnerIdx,
       effect_result: null,
+      effect_revealed: false,
       show_eff_continue: false,
       eff_body_buttons: null,
       effect_deck: deck,
@@ -886,6 +661,10 @@ export default function Host() {
     const tms = teamsRef.current;
     if (!s) return;
     const next = closeCard(s, tms, s.effect_team_idx);
+    if (pendingFx) {
+      setScoreFx(pendingFx);
+      setPendingFx(null);
+    }
     try {
       await saveGameState(gameId, s.revision, next, s);
     } catch (err) {
@@ -1056,24 +835,12 @@ export default function Host() {
       </div>
 
       <div className="legend effects">
-        <span>
-          <b style={{ background: "#3F5D45" }} />+100–1000 điểm (tung xúc xắc)
-        </span>
-        <span>
-          <b style={{ background: "#9B2335" }} />-100–1000 điểm (tung xúc xắc trừ)
-        </span>
-        <span>
-          <b style={{ background: "#B4B2A9" }} />Mất hết điểm
-        </span>
-        <span>
-          <b style={{ background: "#22293A" }} />Reset điểm cả bàn
-        </span>
-        <span>
-          <b style={{ background: "#8A4B08" }} />Cướp điểm
-        </span>
-        <span>
-          <b style={{ background: "#4A3A6B" }} />Đổi điểm
-        </span>
+        {EFFECT_DEFINITIONS.map((def) => (
+          <span key={def.type}>
+            <b style={{ background: EFFECT_COLORS[def.type] }} />
+            {def.icon} {def.label}
+          </span>
+        ))}
       </div>
 
       <div className="board">
@@ -1133,6 +900,21 @@ export default function Host() {
           <button className="host-btn ghost" onClick={resetGame}>
             Ván mới
           </button>
+          <details className="test-effects">
+            <summary>🧪 Test hiệu ứng (bốc lá chỉ định)</summary>
+            <div className="test-grid">
+              {EFFECT_DEFINITIONS.map((def) => (
+                <button
+                  key={def.type}
+                  type="button"
+                  className="host-btn ghost"
+                  onClick={() => drawEffect(def.type)}
+                >
+                  {def.icon} {def.label}
+                </button>
+              ))}
+            </div>
+          </details>
           <div className="hint">
             Đội tới lượt chọn 1 lá bài số, sau đó chọn 1 trong 4 đáp án trên thiết bị của mình. Trả lời đúng → bốc 1
             lá bài may mắn, đội đó tiếp tục lượt. Trả lời sai → quyền trả lời chuyển sang đội tiếp theo; nếu 3 đáp án
@@ -1188,7 +970,7 @@ export default function Host() {
 
             {state.phase === "explaining" && state.answer_submission_team_key && (
               <div className="card-actions">
-                <button className="host-btn" onClick={drawEffect}>
+                <button className="host-btn" onClick={() => drawEffect()}>
                   Bốc lá bài may mắn
                 </button>
               </div>
@@ -1197,30 +979,22 @@ export default function Host() {
         )}
       </div>
 
-      {/* Effect Card Overlay: skip for dice so dice modal handles its own display.
-          key={state.revision} remounts (undismissed) whenever a new effect is
-          drawn or the team's target choice is saved. */}
-      {state.show_effect && !revealingEffect && state.eff_body_buttons !== "dice" && (
-        <EffectCardOverlay
-          key={state.revision}
+      {/* Lá bài hiệu ứng duy nhất: úp → lật hồi hộp → chính lá đó hiển thị nội
+          dung + tương tác (xúc xắc / chọn mục tiêu / kết quả). key=drawSeq chỉ
+          đổi khi bốc lá mới nên các tương tác không remount card. */}
+      {state.show_effect && (
+        <EffectCard
+          key={drawSeq}
           state={state}
           teams={teams}
           teamName={teams[state.effect_team_idx]?.name}
+          animate={revealingEffect}
           onContinue={continueAfterEffect}
           onPickTarget={(targetIdx) =>
             state.eff_body_buttons === "steal" ? resolveSteal(targetIdx) : resolveSwap(targetIdx)
           }
-        />
-      )}
-
-      {/* Suspense card-flip reveal khi host bốc lá bài hiệu ứng */}
-      {revealingEffect && state.effect_icon && (
-        <EffectReveal
-          key={`reveal-${state.revision}`}
-          icon={state.effect_icon}
-          label={state.effect_label}
-          teamName={teams[state.effect_team_idx]?.name}
-          teamColor={teams[state.effect_team_idx]?.color}
+          onRollDice={rollDice}
+          onConfirmDice={confirmAndContinueDice}
         />
       )}
 
@@ -1250,76 +1024,6 @@ export default function Host() {
               Ván mới
             </button>
           </div>
-        </div>
-      </div>
-
-      {/* ── Dice Modal ── */}
-      <style>{DICE_STYLE}</style>
-      <div className={"dice-overlay" + (state.show_dice && !revealingEffect ? "" : " hidden")}>
-        <div className="dice-modal" style={{ position: "relative" }}>
-          
-          <div style={{ textAlign: 'center', marginBottom: '2rem', borderBottom: '0.5px solid #887272', paddingBottom: '1rem', width: '100%' }}>
-            <div style={{ fontSize: '20px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#554243', marginBottom: '1rem' }}>
-              Gieo Xúc Xắc — {teams[state.effect_team_idx]?.name ?? ""}
-            </div>
-            <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#5c0c1c', marginBottom: '4px' }}>
-              <span style={{ fontSize: '40px', marginRight: '8px' }}>{state.effect_icon}</span>
-              {state.effect_label}
-            </div>
-            <div style={{ fontSize: '22px', color: '#555' }}>
-              {state.effect_desc}
-            </div>
-          </div>
-
-          <div className="dice-scene">
-            <div className="dice-wrapper" ref={wrapperRef}>
-              <div className="dice-cube" ref={cubeRef}>
-                <div className="dice-face front">100</div>
-                <div className="dice-face back">1000</div>
-                <div className="dice-face right">500</div>
-                <div className="dice-face left">200</div>
-                <div className="dice-face top">300</div>
-                <div className="dice-face bottom">600</div>
-              </div>
-            </div>
-            <div className="dice-shadow" ref={shadowRef} />
-          </div>
-
-          {!state.dice_rolling && !state.dice_result_visible && (
-            <div style={{ marginTop: '1rem', textAlign: 'center', fontSize: '22px', color: '#887272', fontStyle: 'italic' }}>
-              <div style={{ marginBottom: '12px' }}>
-                Đang chờ Đội {teams[state.effect_team_idx]?.name} tung xúc xắc…
-              </div>
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-                <button onClick={rollDice} className="host-btn ghost" style={{ padding: '8px 16px', fontSize: '18px' }}>
-                  🎲 Tung hộ
-                </button>
-                <button onClick={continueAfterEffect} className="host-btn ghost" style={{ padding: '8px 16px', fontSize: '18px' }}>
-                  Đóng
-                </button>
-              </div>
-            </div>
-          )}
-
-          {state.dice_result_visible && (
-            <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-              <div style={{
-                fontSize: '32px', fontWeight: 700,
-                color: state.effect_type === 'dice_subtract' ? '#9B2335' : '#3F5D45',
-                marginBottom: '1.2rem'
-              }}>
-                🎲 {state.dice_value} — {teams[state.effect_team_idx]?.name} {state.effect_type === 'dice_subtract' ? '-' : '+'}{state.dice_value} điểm!
-              </div>
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-                <button className="dice-roll-btn" onClick={confirmAndContinueDice}>
-                  Tiếp tục
-                </button>
-                <button onClick={continueAfterEffect} className="host-btn ghost" style={{ padding: '8px 16px', fontSize: '18px' }}>
-                  Đóng
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

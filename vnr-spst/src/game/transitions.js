@@ -122,6 +122,7 @@ export function closeCard(state, teams, winnerIndex) {
     effect_desc: null,
     effect_team_idx: null,
     effect_result: null,
+    effect_revealed: false,
     show_eff_continue: false,
     eff_body_buttons: null,
     show_dice: false,

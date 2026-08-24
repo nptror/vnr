@@ -586,6 +586,37 @@
   margin-top: 2px;
 }
 
+.test-effects {
+  margin: 8px 0;
+  font-family: 'Noto Sans', sans-serif;
+}
+
+.test-effects summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--maroon-dark);
+  padding: 6px 0;
+  user-select: none;
+}
+
+.test-effects[open] summary {
+  margin-bottom: 8px;
+}
+
+.test-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.test-grid .host-btn {
+  font-size: 13px;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+
 @media (max-width: 720px) {
   .panel {
     grid-template-columns: 1fr;
