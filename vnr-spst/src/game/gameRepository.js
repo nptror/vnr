@@ -292,42 +292,94 @@ export function submitEffectTargetEvent({ gameId, teamKey, revision, targetIdx }
 
 // Meme drops are ephemeral and cosmetic only — they use Supabase Realtime
 // Broadcast (no table, nothing persisted) instead of a game_events row.
-const memeChannels = new Map();
+//
+// Broadcast requires EVERY screen to share one topic (`meme:{gameId}`), so the
+// unique-topic trick used by subscribeToGame is not available here. That means
+// the supabase-js removeChannel race documented above applies in full: under
+// React StrictMode's setup→cleanup→setup double-mount, removing the channel on
+// cleanup hands the next mount the OLD instance mid-unsubscribe and the
+// subscription dies silently (no drops, no sound on the Host). Instead of
+// tearing down on every unsubscribe, the channel is ref-counted and only
+// removed after a linger period with no subscribers.
+const MEME_CHANNEL_LINGER_MS = 10_000;
+const memeChannels = new Map(); // gameId -> entry
 
-function ensureMemeChannel(gameId) {
-  const client = getClient();
-  let channel = memeChannels.get(gameId);
-  if (!channel) {
-    // self: true — người thả meme cũng nhận lại drop của chính mình, để meme
-    // hiện đồng loạt trên MỌI màn hình (Host + tất cả máy chơi).
-    channel = client.channel(`meme:${gameId}`, {
-      config: { broadcast: { self: true } },
-    });
-    memeChannels.set(gameId, channel);
+function acquireMemeChannel(gameId) {
+  let entry = memeChannels.get(gameId);
+  if (!entry) {
+    entry = {
+      // self: true — máy thả cũng nhận lại drop của chính mình.
+      channel: getClient().channel(`meme:${gameId}`, {
+        config: { broadcast: { self: true } },
+      }),
+      refs: 0,
+      joinPromise: null,
+      pendingRemove: null,
+      bound: false,
+      handler: null,
+    };
+    memeChannels.set(gameId, entry);
   }
-  return channel;
+  entry.refs += 1;
+  if (entry.pendingRemove) {
+    clearTimeout(entry.pendingRemove);
+    entry.pendingRemove = null;
+  }
+  return entry;
+}
+
+function releaseMemeChannel(gameId) {
+  const entry = memeChannels.get(gameId);
+  if (!entry) return;
+  entry.refs -= 1;
+  if (entry.refs <= 0 && !entry.pendingRemove) {
+    entry.pendingRemove = setTimeout(() => {
+      memeChannels.delete(gameId);
+      getClient().removeChannel(entry.channel);
+    }, MEME_CHANNEL_LINGER_MS);
+  }
+}
+
+// Join một lần duy nhất cho mỗi entry; các lời gọi sau chia sẻ cùng promise.
+// Lỗi socket tạm thời được bỏ qua — supabase-js tự rejoin, còn promise sẽ được
+// đánh dấu lại để lần gửi kế tiếp thử join mới.
+function ensureMemeJoined(entry) {
+  if (entry.channel.state === "joined") return Promise.resolve();
+  if (!entry.joinPromise) {
+    entry.joinPromise = new Promise((resolve) => {
+      entry.channel.subscribe((status) => {
+        if (status === "SUBSCRIBED") resolve();
+        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          entry.joinPromise = null;
+        }
+      });
+    });
+  }
+  return entry.joinPromise;
 }
 
 export function subscribeToMemeDrops(gameId, onDrop) {
-  const channel = ensureMemeChannel(gameId);
-  channel.on("broadcast", { event: "meme_drop" }, ({ payload }) => onDrop(payload));
-  if (channel.state !== "joined" && channel.state !== "joining") channel.subscribe();
-  return () => {
-    getClient().removeChannel(channel);
-    memeChannels.delete(gameId);
-  };
+  const entry = acquireMemeChannel(gameId);
+  // Channel.on() không thể gỡ listener, nên chỉ đăng ký MỘT listener cho mỗi
+  // entry và để callback mới nhất thay thế — tránh nhân đôi drop khi StrictMode
+  // mount lại hoặc resubscribe nhiều lần.
+  if (!entry.bound) {
+    entry.channel.on("broadcast", { event: "meme_drop" }, ({ payload }) => entry.handler?.(payload));
+    entry.bound = true;
+  }
+  entry.handler = onDrop;
+  ensureMemeJoined(entry);
+  return () => releaseMemeChannel(gameId);
 }
 
-export function sendMemeDrop(gameId, payload) {
-  const channel = ensureMemeChannel(gameId);
-  if (channel.state === "joined") {
-    return channel.send({ type: "broadcast", event: "meme_drop", payload });
+export async function sendMemeDrop(gameId, payload) {
+  const entry = acquireMemeChannel(gameId);
+  try {
+    await ensureMemeJoined(entry);
+    await entry.channel.send({ type: "broadcast", event: "meme_drop", payload });
+  } catch {
+    /* Realtime hỏng thì bỏ qua — meme drop chỉ là cosmetic. */
+  } finally {
+    releaseMemeChannel(gameId);
   }
-  return new Promise((resolve) => {
-    channel.subscribe((status) => {
-      if (status === "SUBSCRIBED") {
-        channel.send({ type: "broadcast", event: "meme_drop", payload }).then(resolve);
-      }
-    });
-  });
 }
