@@ -38,6 +38,7 @@ import WinnerPodium from "../components/WinnerPodium.jsx";
 import { playSound, stopSound, playMemeSoundFromPool } from "../game/sounds";
 import { getMemeSoundPool } from "../config/memes";
 import { useMemeDrop, MEME_LIFETIME } from "../hooks/useMemeDrop.js";
+import { useBackgroundMusic } from "../hooks/useBackgroundMusic.js";
 import "./Host.css";
 
 const HOST_GAME_ID_KEY = "vnr_host_game_id";
@@ -172,6 +173,7 @@ export default function Host() {
   const teamsRef = useRef([]);
   const processedEventIds = useRef(new Set());
   const { activeMemes, addMeme } = useMemeDrop();
+  const bgm = useBackgroundMusic();
 
   // ScoreFx — animation điểm số (swap/steal), chỉ hiển thị trên Host.
   const [scoreFx, setScoreFx] = useState(null);
@@ -1103,6 +1105,30 @@ export default function Host() {
           <button className="host-btn ghost" onClick={resetGame}>
             Ván mới
           </button>
+
+          <div className="bgm-controls">
+            <span className="bgm-label">🎵 Nhạc nền</span>
+            <button
+              type="button"
+              className={"host-btn ghost bgm-toggle" + (bgm.enabled ? " on" : "")}
+              onClick={bgm.toggle}
+            >
+              {bgm.enabled ? "Tắt" : "Bật"}
+            </button>
+            <div className="bgm-volume">
+              <button type="button" className="host-btn ghost bgm-vol-btn" onClick={bgm.decreaseVolume} disabled={bgm.volume <= 0}>−</button>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={bgm.volume}
+                onChange={(e) => bgm.setVolume(Number(e.target.value))}
+                className="bgm-slider"
+              />
+              <button type="button" className="host-btn ghost bgm-vol-btn" onClick={bgm.increaseVolume} disabled={bgm.volume >= 1}>+</button>
+            </div>
+          </div>
           <details className="test-effects">
             <summary>🧪 Test hiệu ứng (bốc lá chỉ định)</summary>
             {/* pickAndApplyEffect không tự canh phase (nó cần chạy được giữa
