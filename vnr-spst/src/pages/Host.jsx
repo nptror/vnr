@@ -15,7 +15,7 @@ import {
   subtractDiceScore,
   loseAllScore,
   resetScores,
-  stealUpToFive,
+  stealScore,
   swapScores,
 } from "../game/transitions";
 import {
@@ -182,11 +182,6 @@ export default function Host() {
     const id = setTimeout(() => setScoreFx(null), 4000);
     return () => clearTimeout(id);
   }, [scoreFx]);
-
-  // Animation cướp/đổi điểm KHÔNG chiếu ngay khi chọn mục tiêu mà chờ host
-  // bấm "Tiếp tục" trên lá bài — khán phòng đọc xong kết quả rồi mới xem
-  // hiệu ứng điểm bay trên bảng.
-  const [pendingFx, setPendingFx] = useState(null);
 
   // Suspense card-flip reveal: bật mỗi khi có thẻ hiệu ứng mới lật lên
   // (startGuaranteedDiceRoll / pickAndApplyEffect / grantFlatBonus đều
@@ -574,29 +569,27 @@ export default function Host() {
     }
   };
 
+  // Lá "Cướp Điểm": bấm đội chỉ CHỌN mục tiêu (lưu steal_target_idx) rồi
+  // chuyển sang chế độ xúc xắc — số điểm cướp đúng bằng mặt xúc xắc, áp dụng
+  // ở confirmAndContinueDice (nhánh effect_type === "steal").
   const resolveSteal = async (targetIdx) => {
     const s = stateRef.current;
     const tms = teamsRef.current;
-    if (!s) return;
-    const fromIdx = s.effect_team_idx;
-    const amount = Math.min(500, Math.max(0, tms[targetIdx]?.score ?? 0));
-    const nextTeams = stealUpToFive(tms, fromIdx, targetIdx);
+    if (!s || !tms[targetIdx]) return;
+    const victim = tms[targetIdx];
     try {
-      await saveTeams(gameId, nextTeams);
       await saveGameState(gameId, s.revision, {
         ...s,
-        effect_result: `${tms[fromIdx]?.name} cướp ${amount} điểm từ ${tms[targetIdx]?.name}!`,
-        show_eff_continue: true,
-        eff_body_buttons: null,
+        steal_target_idx: targetIdx,
+        effect_desc: `Cướp điểm từ ${victim.name} — tung xúc xắc, số điểm cướp đúng bằng điểm xúc xắc (tối đa ${victim.score}đ).`,
+        effect_result: null,
+        show_dice: true,
+        dice_rolling: false,
+        dice_value: null,
+        dice_result_visible: false,
+        eff_body_buttons: "dice",
         revision: s.revision + 1,
       }, s);
-      setPendingFx({
-        key: Date.now(),
-        type: "steal",
-        amount,
-        a: { name: tms[fromIdx]?.name, color: tms[fromIdx]?.color, before: tms[fromIdx]?.score ?? 0, after: nextTeams[fromIdx]?.score ?? 0 },
-        b: { name: tms[targetIdx]?.name, color: tms[targetIdx]?.color, before: tms[targetIdx]?.score ?? 0, after: nextTeams[targetIdx]?.score ?? 0 },
-      });
     } catch (err) {
       handleSaveConflict(err);
     }
@@ -617,7 +610,10 @@ export default function Host() {
         eff_body_buttons: null,
         revision: s.revision + 1,
       }, s);
-      setPendingFx({
+      // Chiếu animation đổi điểm NGAY khi đội được chọn (trên /play hoặc
+      // Host bấm hộ) — không chờ bấm "Tiếp tục" nữa.
+      playSound("meme-money");
+      setScoreFx({
         key: Date.now(),
         type: "swap",
         a: { name: tms[fromIdx]?.name, color: tms[fromIdx]?.color, before: tms[fromIdx]?.score ?? 0, after: nextTeams[fromIdx]?.score ?? 0 },
@@ -820,6 +816,38 @@ export default function Host() {
 
     // Apply points
     const idx = s.effect_team_idx;
+
+    // Lá "Cướp Điểm": mặt xúc xắc là số điểm cướp từ đội mục tiêu đã chọn
+    // (steal_target_idx), tối đa điểm đội đó đang có. Chiếu ScoreFx ngay lúc
+    // điểm đổi, lá bài ở lại để Host bấm "Tiếp tục" đóng lá.
+    if (s.effect_type === "steal") {
+      const victimIdx = s.steal_target_idx;
+      const rolled = Math.max(0, s.dice_value ?? 0);
+      const amount = Math.min(rolled, Math.max(0, tms[victimIdx]?.score ?? 0));
+      const nextStealTeams = stealScore(tms, idx, victimIdx, rolled);
+      try {
+        await saveTeams(gameId, nextStealTeams);
+        await saveGameState(gameId, s.revision, {
+          ...s,
+          effect_result: `${tms[idx]?.name} tung 🎲 ${rolled}, cướp ${amount} điểm từ ${tms[victimIdx]?.name}!`,
+          show_eff_continue: true,
+          eff_body_buttons: null,
+          revision: s.revision + 1,
+        }, s);
+        playSound("steal");
+        setScoreFx({
+          key: Date.now(),
+          type: "steal",
+          amount,
+          a: { name: tms[idx]?.name, color: tms[idx]?.color, before: tms[idx]?.score ?? 0, after: nextStealTeams[idx]?.score ?? 0 },
+          b: { name: tms[victimIdx]?.name, color: tms[victimIdx]?.color, before: tms[victimIdx]?.score ?? 0, after: nextStealTeams[victimIdx]?.score ?? 0 },
+        });
+      } catch (err) {
+        handleSaveConflict(err);
+      }
+      return;
+    }
+
     const isSub = s.effect_type === "dice_subtract";
     const nextTeams = isSub ? subtractDiceScore(tms, idx, s.dice_value) : addDiceScore(tms, idx, s.dice_value);
 
@@ -851,11 +879,6 @@ export default function Host() {
     const tms = teamsRef.current;
     if (!s) return;
     const next = closeCard(s, tms);
-    if (pendingFx) {
-      playSound(pendingFx.type === "steal" ? "steal" : "meme-money");
-      setScoreFx(pendingFx);
-      setPendingFx(null);
-    }
     try {
       await saveGameState(gameId, s.revision, next, s);
     } catch (err) {
@@ -955,6 +978,7 @@ export default function Host() {
         effect_result: null,
         show_eff_continue: false,
         eff_body_buttons: null,
+        steal_target_idx: null,
         show_dice: false,
         dice_rolling: false,
         dice_value: null,
@@ -1016,23 +1040,6 @@ export default function Host() {
 
   return (
     <div className="host-wrap">
-      <div className="masthead">
-        <div>
-          <div className="sub">Trò chơi thuyết trình lịch sử Đảng</div>
-          <h1>Hành Trình Đổi Mới</h1>
-          <div className="sub" style={{ marginTop: 6 }}>
-            Đại hội VI (1986) → Đại hội VIII (1996) → Đại hội IX (2001) → 2006 · PIN: <b>{gamePin ?? "…"}</b>
-          </div>
-        </div>
-        <div className="stamp">
-          VĂN
-          <br />
-          KIỆN
-          <br />
-          ĐẢNG
-        </div>
-      </div>
-
       <div className="legend">
         <span style={{ background: CAT_COLOR.L }}>{CAT_NAME.L}</span>
         <span style={{ background: CAT_COLOR.S }}>{CAT_NAME.S}</span>
@@ -1098,6 +1105,9 @@ export default function Host() {
           <div className="turn-name">{selectingTeam?.name}</div>
           <div className="progress">
             {openedCount}/{totalCards} lá đã mở
+          </div>
+          <div className="room-pin">
+            PIN phòng: <b>{gamePin ?? "…"}</b>
           </div>
           <button className="host-btn ghost" onClick={finishGame}>
             Kết thúc &amp; xếp hạng

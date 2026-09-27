@@ -107,7 +107,9 @@ export default function ScoreFx({ fx }) {
 
 const STYLE = `
   .sf-overlay {
-    position: fixed; inset: 0; z-index: 95;
+    /* z 130: cao hơn lá hiệu ứng (.er-overlay z 120) để animation hiện ngay
+       khi đội bấm chọn mục tiêu, trong lúc lá bài vẫn còn trên màn hình. */
+    position: fixed; inset: 0; z-index: 130;
     display: flex; align-items: center; justify-content: center;
     background: rgba(20,16,10,0.45);
     backdrop-filter: blur(2px);

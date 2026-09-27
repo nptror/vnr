@@ -305,7 +305,7 @@ export const EFFECT_DEFINITIONS = [
     type: "steal",
     icon: "🗡️",
     label: "Cướp Điểm",
-    desc: "Chọn 1 đội khác để cướp 500 điểm (nếu đội đó có ít hơn 500 thì lấy hết).",
+    desc: "Chọn 1 đội khác rồi tung xúc xắc — số điểm cướp đúng bằng điểm xúc xắc (nếu đội đó có ít hơn thì lấy hết).",
   },
   {
     type: "swap",

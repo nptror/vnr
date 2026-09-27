@@ -135,9 +135,9 @@ Trả lời đúng
 
 ### 🗡️ Cướp Điểm (4 lá)
 
-- Chọn **1 đội khác** để cướp tối đa **500 điểm**
-- Nếu đội bị cướp có ít hơn 500 điểm → lấy hết
-- Host chọn đội nạn nhân trên màn hình
+- Chọn **1 đội khác** làm mục tiêu, sau đó **tung xúc xắc** (100–600)
+- Số điểm cướp **đúng bằng mặt xúc xắc**; nếu đội bị cướp có ít điểm hơn → lấy hết
+- Đội bốc lá tự tung trên điện thoại, hoặc Host bấm "Tung hộ"
 
 ### 🔄 Đổi Điểm (3 lá)
 

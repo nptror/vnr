@@ -3,6 +3,48 @@
 -- Questions & Cards → giữ trong frontend code
 -- Database chỉ sync trạng thái realtime giữa các thiết bị
 -- ============================================================
+--
+-- CÁCH DÙNG (Supabase Dashboard → SQL Editor)
+--
+--   A. Database mới / vừa drop toàn bộ:
+--      paste TOÀN BỘ file này, chạy 1 lần. Xong.
+--
+--   B. Database cũ đang có dữ liệu muốn xoá sạch tạo lại:
+--      1. chạy khối "RESET" ở dưới (paste riêng, chạy trước) — xoá sạch
+--         toàn bộ bảng, function, policy, và gỡ bảng khỏi publication
+--      2. paste TOÀN BỘ phần còn lại của file này, chạy 1 lần.
+--
+--   File idempotent: chạy lại nhiều lần cũng không lỗi, không nhân bản.
+--   Toàn bộ dữ liệu game cũ (games, teams, game_state, game_events) sẽ mất
+--   khi chạy phần B — đó là chủ đích, không có bước khôi phục.
+--
+-- ============================================================
+
+
+-- ============================================================
+-- RESET — xoá sạch (chỉ chạy ở trường hợp B)
+-- Bỏ qua khối này nếu bạn đang tạo database mới hoặc chỉ muốn nâng cấp.
+-- Thứ tự: ba bảng con (game_events, game_state, teams) trước, bảng cha
+-- games sau — khớp với quan hệ FK, CASCADE thừa nhưng để lỡ FK nào đổi thì
+-- vẫn chạy được.
+-- Thả bảng sẽ tự gỡ bảng khỏi publication `supabase_realtime`, và mọi RLS
+-- policy gắn với bảng cũng bị xoá theo — không cần lệnh dọn policy riêng.
+-- ============================================================
+DROP TABLE IF EXISTS game_events  CASCADE;
+DROP TABLE IF EXISTS game_state  CASCADE;
+DROP TABLE IF EXISTS teams       CASCADE;
+DROP TABLE IF EXISTS games       CASCADE;
+
+-- create_game từng có 2 phiên bản: bản 1 tham số (trước đây) và bản 2 tham số
+-- (hiện tại). CREATE OR REPLACE KHÔNG thay được hàm cũ khi signature đổi —
+-- Postgres tạo thêm một *overload* và giữ lại hàm cũ. Xoá cả hai nên xoá cả
+-- hai tham số để không sót phiên bản nào từ các lần deploy trước.
+DROP FUNCTION IF EXISTS create_game(TEXT, INT);
+DROP FUNCTION IF EXISTS create_game(TEXT);
+DROP FUNCTION IF EXISTS log_game_event(UUID, TEXT, JSONB, TEXT);
+DROP FUNCTION IF EXISTS update_updated_at();
+-- ============================================================
+
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -77,6 +119,7 @@ CREATE TABLE IF NOT EXISTS game_state (
   show_eff_continue   BOOLEAN NOT NULL DEFAULT false,
   eff_body_buttons    TEXT,                                   -- 'dice'|'steal'|'swap'|NULL
   effect_revealed     BOOLEAN NOT NULL DEFAULT false,         -- false = animation lật bài chưa xong, Play chưa được thao tác
+  steal_target_idx    INT,                                    -- đội bị cướp đã chọn (lá 'steal', chờ tung xúc xắc)
 
   -- Xúc xắc
   show_dice           BOOLEAN NOT NULL DEFAULT false,
@@ -93,6 +136,11 @@ CREATE TABLE IF NOT EXISTS game_state (
 );
 
 -- Keep upgrades safe for projects that created the original schema already.
+-- Trên database mới (hoặc sau khi chạy khối RESET) tất cả các lệnh dưới đây
+-- đều là no-op: CREATE TABLE phía trên đã khai báo đủ cột và UNIQUE
+-- (game_id, team_code) nên constraint cũng đã tự sinh đúng tên. Chúng được
+-- giữ lại để file vẫn chạy được (chậm hơn một chút, vô hại) trên DB cũ chưa
+-- muốn xoá dữ liệu.
 ALTER TABLE game_state ADD COLUMN IF NOT EXISTS phase TEXT NOT NULL DEFAULT 'selecting_card'
   CHECK (phase IN ('selecting_card', 'answering', 'explaining', 'resolving_effect', 'closing_card', 'finished'));
 ALTER TABLE game_state ADD COLUMN IF NOT EXISTS card_deck JSONB NOT NULL DEFAULT '[]'::JSONB;
@@ -104,6 +152,7 @@ ALTER TABLE game_state ADD COLUMN IF NOT EXISTS answering_team_key TEXT;
 ALTER TABLE game_state ADD COLUMN IF NOT EXISTS answer_submission_team_key TEXT;
 ALTER TABLE game_state ADD COLUMN IF NOT EXISTS revision INT NOT NULL DEFAULT 0;
 ALTER TABLE game_state ADD COLUMN IF NOT EXISTS effect_revealed BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS steal_target_idx INT;
 
 ALTER TABLE teams ADD COLUMN IF NOT EXISTS team_code TEXT NOT NULL DEFAULT '';
 UPDATE teams SET team_code = team_key WHERE team_code = '';
@@ -167,13 +216,28 @@ CREATE TRIGGER trg_game_state_updated
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ============================================================
--- FUNCTION: Tạo game mới + teams mặc định (gọi từ frontend)
+-- FUNCTION: Tạo game mới + N teams mặc định (gọi từ frontend)
+--
+-- Thứ tự deploy: chạy SQL này TRƯỚC, deploy frontend SAU. Hàm có tham số
+-- `p_team_count` nên frontend mới gọi `create_game(p_pin, p_team_count)` sẽ
+-- fail "function does not exist" nếu DB chưa được cập nhật. `DEFAULT 7` ở đây
+-- chỉ có tác dụng với caller BỎ TRỐN tham số — nó KHÔNG cứu được trường hợp
+-- "DB chưa chạy migration", vì client luôn truyền tham số thứ hai đi kèm.
+--
+-- DROP bên dưới xoá phiên bản 1 tham số từ các lần deploy cũ: CREATE OR REPLACE
+-- không thay được hàm khi signature đổi mà tạo *overload*, để lại hai hàm trùng
+-- tên trong DB. An toàn kể cả khi bạn bỏ qua khối RESET. Toàn repo chỉ có một
+-- call site (`createGame` trong src/game/gameRepository.js) nên không mất
+-- caller nào. Sau khi chạy file này, `\df create_game` phải chỉ ra ĐÚNG MỘT
+-- hàm `create_game(text, integer)`.
 -- ============================================================
-CREATE OR REPLACE FUNCTION create_game(p_pin TEXT DEFAULT '1986')
+DROP FUNCTION IF EXISTS create_game(TEXT);
+CREATE OR REPLACE FUNCTION create_game(p_pin TEXT DEFAULT '1986', p_team_count INT DEFAULT 7)
 RETURNS UUID AS $$
 DECLARE
   v_game_id UUID;
   v_team_data JSONB;
+  v_count    INT;
 BEGIN
   -- Only one game per PIN should ever be joinable at a time. Without this,
   -- every test/practice run left its game as 'waiting'/'playing' forever,
@@ -185,6 +249,15 @@ BEGIN
 
   INSERT INTO game_state (game_id) VALUES (v_game_id);
 
+  -- Clamp ở DB vì đây là ranh giới tin cậy cuối: frontend cũng clamp, nhưng
+  -- RPC có thể bị gọi trực tiếp. 2 là số đội tối thiểu chơi được, 7 là số
+  -- bộ metadata (tên/màu/icon) có sẵn — vượt 7 sẽ phải thiết kế đội mới.
+  v_count := GREATEST(2, LEAST(7, COALESCE(p_team_count, 7)));
+
+  -- 7 đội khả dụng. Đây là bản sao metadata thứ hai cạnh `TEAM_CATALOG` trong
+  -- src/game/catalog.js (bản JS mà UI đọc). PHẢI giữ đúng thứ tự `order`,
+  -- `key`, `name` và `color` của TEAM_CATALOG: UI hiển thị tên/màu từ JS còn
+  -- bảng điểm render từ DB, lệch một bên sẽ ra hai màu hai tên cho cùng đội.
   FOR v_team_data IN SELECT * FROM jsonb_array_elements('[
     {"key":"red",    "name":"Đội Đỏ",  "color":"#7A2430", "order":0},
     {"key":"blue",   "name":"Đội Xanh", "color":"#1F4E66", "order":1},
@@ -195,8 +268,12 @@ BEGIN
     {"key":"lam",    "name":"Đội Lam",  "color":"#2563EB", "order":6}
   ]'::JSONB)
   LOOP
-    INSERT INTO teams (game_id, team_key, team_code, name, color, display_order)
-    VALUES (v_game_id, v_team_data->>'key', v_team_data->>'key', v_team_data->>'name', v_team_data->>'color', (v_team_data->>'order')::INT);
+    -- Chọn N đội ĐẦU TIÊN theo `order` cố định, nên display_order luôn là
+    -- 0..N-1 liền mạch và team_key/team_code không bao giờ đổi.
+    IF (v_team_data->>'order')::INT < v_count THEN
+      INSERT INTO teams (game_id, team_key, team_code, name, color, display_order)
+      VALUES (v_game_id, v_team_data->>'key', v_team_data->>'key', v_team_data->>'name', v_team_data->>'color', (v_team_data->>'order')::INT);
+    END IF;
   END LOOP;
 
   RETURN v_game_id;

@@ -211,9 +211,11 @@ export default function EffectCard({
                               state.effect_type === "dice_subtract" ? "down" : "up"
                             }`}
                           >
-                            🎲 {state.dice_value} — {teamName}{" "}
-                            {state.effect_type === "dice_subtract" ? "−" : "+"}
-                            {state.dice_value} điểm!
+                            {state.effect_type === "steal"
+                              ? `🎲 ${state.dice_value} — ${teamName} sẽ cướp từ ${teams[state.steal_target_idx]?.name ?? "?"}!`
+                              : `🎲 ${state.dice_value} — ${teamName} ${
+                                  state.effect_type === "dice_subtract" ? "−" : "+"
+                                }${state.dice_value} điểm!`}
                           </div>
                           <div className="er-actions">
                             <button type="button" className="dice-roll-btn" onClick={onConfirmDice}>

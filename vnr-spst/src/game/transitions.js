@@ -52,14 +52,15 @@ export function resetScores(teams) {
 }
 
 // thiefIndex is the team that drew the effect and gains points; victimIndex
-// is the Host-chosen team that loses them, capped by the victim's own score
-// ("Nếu đội bị cướp có ít hơn 500 điểm → lấy hết").
-export function stealUpToFive(teams, thiefIndex, victimIndex) {
+// is the chosen team that loses them. The dice roll (requestedAmount) decides
+// the steal size, capped by the victim's own score ("cướp tối đa số điểm đội
+// đó đang có").
+export function stealScore(teams, thiefIndex, victimIndex, requestedAmount) {
   const thief = teams[thiefIndex];
   const victim = teams[victimIndex];
   if (!thief || !victim || thiefIndex === victimIndex) return cloneTeams(teams);
 
-  const amount = Math.min(500, Math.max(0, victim.score));
+  const amount = Math.min(Math.max(0, Number(requestedAmount) || 0), Math.max(0, victim.score));
   return teams.map((team, index) => {
     if (index === thiefIndex) return { ...team, score: team.score + amount };
     if (index === victimIndex) return { ...team, score: team.score - amount };
@@ -129,6 +130,7 @@ export function closeCard(state, teams) {
     effect_revealed: false,
     show_eff_continue: false,
     eff_body_buttons: null,
+    steal_target_idx: null,
     show_dice: false,
     dice_rolling: false,
     dice_value: null,
