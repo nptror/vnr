@@ -7,6 +7,7 @@ import {
   EFFECT_COLORS,
   EFFECT_DEFINITIONS,
   getCardByNumber,
+  normalizeTeamCount,
   shuffle,
 } from "../game/catalog";
 import {
@@ -285,8 +286,17 @@ export default function Host() {
           // Reuse the existing active room for this pin when there is one —
           // otherwise every fresh browser/tab would fork a duplicate game
           // instead of rejoining the session players are already in.
+          //
+          // Số đội cấu hình ở /pin (localStorage['vnr_team_count']) chỉ có tác
+          // dụng lúc TẠO phòng mới. Khi `existing` truthy, createGame KHÔNG được
+          // gọi — findGameByPin (gameRepository.js) lọc neq('status','finished')
+          // nên phòng đang chơi dở luôn được resume nguyên đội hình cũ, cấu hình
+          // mới bị bỏ qua. Đó là hành vi cố ý: muốn N đội khác, host phải đổi
+          // mã PIN hoặc kết thúc ván cũ (create_game tự 'finished' mọi game cùng
+          // PIN khi tạo phòng mới).
+          const teamCount = normalizeTeamCount(localStorage.getItem('vnr_team_count'));
           const existing = await findGameByPin(gamePin);
-          id = existing ? existing.id : await createGame(gamePin, createShuffledCardDeck(), createShuffledEffectDeck());
+          id = existing ? existing.id : await createGame(gamePin, createShuffledCardDeck(), createShuffledEffectDeck(), teamCount);
           pin = existing ? (existing.pin ?? null) : gamePin;
           localStorage.setItem(HOST_GAME_ID_KEY, id);
         }

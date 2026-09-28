@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { normalizeTeamCount } from "./catalog";
 
 function getClient() {
   if (!supabase) throw new Error("Supabase is not configured.");
@@ -9,9 +10,16 @@ function throwOnError(error) {
   if (error) throw error;
 }
 
-export async function createGame(pin, cardDeck, effectDeck) {
+export async function createGame(pin, cardDeck, effectDeck, teamCount = 7) {
   const client = getClient();
-  const { data: gameId, error } = await client.rpc("create_game", { p_pin: pin });
+  // normalizeTeamCount (clamp 2–7, fallback 7) nằm ở catalog.js — dùng chung
+  // với /pin và /host, đừng tự clamp tại đây. RPC `create_game` cũng clamp
+  // lần nữa ở DB vì đó là ranh giới tin cậy cuối.
+  const count = normalizeTeamCount(teamCount);
+  const { data: gameId, error } = await client.rpc("create_game", {
+    p_pin: pin,
+    p_team_count: count,
+  });
   throwOnError(error);
 
   await saveGameState(gameId, 0, {
@@ -89,7 +97,9 @@ export async function joinGame(gameId, teamKey, teamCode) {
     err.code = "TEAM_TAKEN";
     throw err;
   }
-  throw new Error("Invalid game, team, or team code.");
+  const notFound = new Error("Đội này không tồn tại trong phòng hiện tại.");
+  notFound.code = "TEAM_NOT_FOUND";
+  throw notFound;
 }
 
 export async function loadGame(gameId, { includeEvents = false, eventLimit = 100 } = {}) {
@@ -197,6 +207,11 @@ export function subscribeToGame(gameId, onChange) {
 // are sent — game_state rows carry large JSONB decks (card_deck/effect_deck)
 // that stay reference-identical across most moves, so this turns a ~20KB row
 // write into a sub-KB patch. Without baseState the full nextState is written.
+//
+// Note: the diff-patch only applies to the REQUEST. The RESPONSE used to be
+// the full updated row (~26KB) because of a bare `.select()` — every caller
+// discarded it. The write helpers below now request only the narrow columns
+// they actually need (`revision`/`team_key`/`id`).
 function buildStatePayload(nextState, baseState) {
   if (!baseState) {
     const full = { ...nextState };
@@ -220,7 +235,9 @@ export async function saveGameState(gameId, expectedRevision, nextState, baseSta
     .update(payload)
     .eq("game_id", gameId)
     .eq("revision", expectedRevision)
-    .select()
+    // All callers need is the conflict signal: an empty UPDATE result still
+    // comes back as `null` via maybeSingle() and trips STALE_REVISION below.
+    .select("revision")
     .maybeSingle();
   throwOnError(error);
   if (!data) {
@@ -248,7 +265,7 @@ export async function saveTeams(gameId, teams) {
   const { data, error } = await getClient()
     .from("teams")
     .upsert(rows, { onConflict: "game_id,team_key" })
-    .select();
+    .select("team_key");
   throwOnError(error);
   return data;
 }
@@ -257,7 +274,7 @@ export async function appendGameEvent(gameId, eventType, payload, createdBy) {
   const { data, error } = await getClient()
     .from("game_events")
     .insert({ game_id: gameId, event_type: eventType, payload, created_by: createdBy })
-    .select()
+    .select("id")
     .single();
   throwOnError(error);
   return data;

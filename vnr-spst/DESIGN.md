@@ -113,7 +113,11 @@ các khoảnh khắc ăn mừng (bục nhấp, lá hiệu ứng), không áp d�
 
 ### 3.4 Màu đội, nhóm câu, hiệu ứng
 
-**7 đội** — nguồn: `game/catalog.js:217-223` và `pages/PickTeam.jsx:7-64`
+**7 đội khả dụng, phòng dùng N đội đầu (2–7, chọn ở `/pin`)** — nguồn: `TEAM_CATALOG` trong
+`game/catalog.js` (nguồn JS duy nhất mà `/pick-team` + `/pin` đọc; `DEFAULT_TEAMS` cùng file suy ra
+từ nó). Khi tạo phòng, `create_game` trong `supabase/schema.sql` chèn đúng N hàng đầu của bản
+**JSONB sao chép** cùng danh sách — bản sao này phải đồng bộ tay với `TEAM_CATALOG` (sửa một bên
+mà quên bên kia sẽ lệch màu/tên giữa DB và UI).
 
 | Key | Tên | Hex | Icon Material Symbols |
 |-----|-----|-----|----------------------|
@@ -124,6 +128,9 @@ các khoảnh khắc ăn mừng (bục nhấp, lá hiệu ứng), không áp d�
 | `orange` | Đội Cam | `#D97706` | `flag` |
 | `pink` | Đội Hồng | `#DB2777` | `favorite` |
 | `lam` | Đội Lam | `#2563EB` | `verified_user` |
+
+> Phòng N đội chỉ dùng N dòng đầu của bảng (`order` 0..N-1 trong `create_game`); 7 dòng luôn tồn
+> tại vì đây là toàn bộ metadata có sẵn — vượt 7 đòi hỏi thiết kế đội mới.
 
 **3 nhóm câu hỏi** — `game/catalog.js:213`
 
@@ -555,15 +562,15 @@ Ngoài ra: `@media (max-width: 640px), (max-height: 720px)` cho EffectCard — c
 | `src/pages/Host.css` | Toàn bộ hệ Host: token `.host-wrap`, bảng bài, panel, overlay, effect, WinnerPodium (`1116` dòng) |
 | `src/pages/Host.jsx` | Render Host + điều phối phase |
 | `src/pages/Landing.jsx` | Style inline (`<style>`) cho trang chính |
-| `src/pages/PinEntry.jsx` | Style inline cho `/pin` |
-| `src/pages/PickTeam.jsx` | Style inline + metadata 7 đội (màu, icon, desc, rotate) |
+| `src/pages/PinEntry.jsx` | Style inline cho `/pin` + stepper số đội (2–7, lưu `vnr_team_count`) |
+| `src/pages/PickTeam.jsx` | Style inline; metadata 7 đội đã chuyển về `TEAM_CATALOG` trong `game/catalog.js` |
 | `src/pages/Play.jsx` | `PLAY_STYLE` (315 dòng) + 3 popup inline-style |
 | `src/components/EffectCard.jsx` | `STYLE` (357 dòng) + xúc xắc 3D + choreography |
 | `src/components/ScoreFx.jsx` | `STYLE` + điều khiển điểm bằng `requestAnimationFrame` |
 | `src/components/MemePanel.jsx` | `STYLE` + grid sticker + cooldown |
 | `src/components/MemeDrop.jsx` | `STYLE` + keyframes pop/fade |
 | `src/components/WinnerPodium.jsx` | Bục nhấp (style nằm ở `Host.css`, phần `wp-*`) |
-| `src/game/catalog.js:213, 217-223, 322-334` | Token màu nhóm / đội / hiệu ứng |
+| `src/game/catalog.js:212, 221-279, 401-412` | Token màu nhóm / `TEAM_CATALOG` (đội) / hiệu ứng |
 | `src/config/memes.js` | Nội dung + `soundPool` theo folder |
 | `src/game/sounds.js` | Bảng âm thanh + quy tắc cắt tiếng |
 | `src/game/transitions.js:4-12` | Góc xoay 3D cho 6 mặt xúc xắc |

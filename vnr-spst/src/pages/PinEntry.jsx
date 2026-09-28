@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { findGameByPin } from '../game/gameRepository'
+import { MAX_TEAM_COUNT, MIN_TEAM_COUNT, TEAM_CATALOG, normalizeTeamCount } from '../game/catalog'
 import { isSupabaseConfigured } from '../lib/supabase'
 
 /**
@@ -115,6 +116,38 @@ const STYLE = `
   .pin-status.miss { color: #8A4B08; }
   .pin-status.err { color: #ba1a1a; }
   .pin-divider { border: none; border-top: 0.5px solid #554243; opacity: 0.5; margin: 1.5rem 0; }
+  .pin-team-config { text-align: center; }
+  .pin-team-stepper {
+    display: flex; align-items: center; justify-content: center; gap: 1rem;
+  }
+  .pin-step-btn {
+    /* Nút −/+ dùng lại .pin-save-btn nhưng gọn hơn vì chỉ chứa 1 ký tự. */
+    padding: 0.35rem 0.9rem;
+    font-size: 18px;
+    line-height: 1;
+  }
+  .pin-step-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .pin-step-btn:disabled:hover { background: #d3d9f0; }
+  /* Số đội hiển thị cùng cỡ chữ với ô PIN (Courier 30px) để hai khối ngang hàng. */
+  .pin-team-count {
+    min-width: 110px;
+    font-family: 'Courier New', monospace;
+    font-size: 30px;
+    font-weight: bold;
+    color: #141b2c;
+  }
+  .pin-team-preview {
+    margin-top: 0.5rem;
+    font-size: 13.5px;
+    font-style: italic;
+    color: #554243;
+  }
+  .pin-team-hint {
+    margin: 0.75rem 0 0;
+    font-size: 13px;
+    line-height: 19px;
+    color: #554243;
+  }
   .pin-role-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
   @media (min-width: 480px) { .pin-role-grid { grid-template-columns: 1fr 1fr; } }
   .pin-role {
@@ -145,6 +178,18 @@ export default function PinEntry() {
   const [pin, setPin] = useState(() => localStorage.getItem('vnr_game_pin') || '1986')
   const [status, setStatus] = useState({ kind: null, text: '' })
   const [checking, setChecking] = useState(false)
+  // Cấu hình số đội "lúc tạo phòng": chỉ có tác dụng khi /host tạo phòng mới.
+  // Lưu ngay trong handler −/+ (không đợi bấm Lưu hay gắn vào <Link>) nên cấu
+  // hình không bao giờ bị sót khi user rời trang qua bất kỳ đường nào.
+  const [teamCount, setTeamCount] = useState(() =>
+    normalizeTeamCount(localStorage.getItem('vnr_team_count'))
+  )
+
+  const setTeamCountAndStore = (next) => {
+    const clamped = normalizeTeamCount(next)
+    setTeamCount(clamped)
+    localStorage.setItem('vnr_team_count', String(clamped))
+  }
 
   const savedPin = () => pin.trim() || '1986'
 
@@ -208,6 +253,40 @@ export default function PinEntry() {
           </div>
 
           <div className={`pin-status ${status.kind ?? ''}`}>{status.text}</div>
+
+          <hr className="pin-divider" />
+
+          <div className="pin-team-config">
+            <label className="pin-label">Số lượng đội</label>
+            <div className="pin-team-stepper">
+              <button
+                type="button"
+                className="pin-save-btn pin-step-btn"
+                onClick={() => setTeamCountAndStore(teamCount - 1)}
+                disabled={teamCount <= MIN_TEAM_COUNT}
+                aria-label="Giảm số lượng đội"
+              >
+                −
+              </button>
+              <div className="pin-team-count">{teamCount} đội</div>
+              <button
+                type="button"
+                className="pin-save-btn pin-step-btn"
+                onClick={() => setTeamCountAndStore(teamCount + 1)}
+                disabled={teamCount >= MAX_TEAM_COUNT}
+                aria-label="Tăng số lượng đội"
+              >
+                +
+              </button>
+            </div>
+            <div className="pin-team-preview">
+              {TEAM_CATALOG.slice(0, teamCount).map((t) => t.name).join(' · ')}
+            </div>
+            <p className="pin-team-hint">
+              Áp dụng khi /host tạo phòng mới. Nếu còn phòng đang chạy với mã này,
+              /host sẽ mở lại phòng cũ — hãy đổi mã phòng.
+            </p>
+          </div>
 
           <hr className="pin-divider" />
 

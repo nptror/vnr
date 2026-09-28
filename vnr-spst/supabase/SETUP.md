@@ -19,6 +19,13 @@ same `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` values.
 
 Vào **Dashboard → SQL Editor** → Paste `supabase/schema.sql` → Run
 
+> **Thứ tự deploy bắt buộc: SQL trước, deploy frontend sau.** `create_game` nhận tham số
+> `p_team_count` — frontend mới luôn truyền tham số này, nên nếu DB chưa chạy schema mới,
+> mọi lệnh tạo phòng sẽ fail `function create_game(...) does not exist`. `DEFAULT 7` trên
+> tham số chỉ có tác dụng với caller bỏ trốn tham số, không cứu được trường hợp này.
+> File idempotent, chạy lại được trên DB cũ; `DROP FUNCTION IF EXISTS` trong file đảm bảo
+> chỉ còn đúng một hàm `create_game(text, integer)` (không sót overload cũ 1 tham số).
+
 ## 3. Cài dependency
 
 ```bash
@@ -43,10 +50,11 @@ VITE_SUPABASE_ANON_KEY=YOUR_ANON_KEY
 All reads/writes go through this module — pages never call `supabase.from(...)` or
 build `postgres_changes` filters directly.
 
-- `createGame(pin, cardDeck, effectDeck)` — Host calls this once on first load (or
-  resumes an existing `gameId` saved in `localStorage`). Creates the `games` row,
-  the seven `teams` rows (via the `create_game` SQL function) and the single
-  `game_state` row seeded with the shuffled decks.
+- `createGame(pin, cardDeck, effectDeck, teamCount)` — Host calls this once on first
+  load (or resumes an existing `gameId` saved in `localStorage`). Creates the `games` row,
+  N `teams` rows (2–7, via the `create_game` SQL function's `p_team_count` parameter —
+  the count is chosen on `/pin` and defaults to 7) and the single `game_state` row
+  seeded with the shuffled decks.
 - `findGameByPin(pin)` / `joinGame(gameId, teamKey, teamCode)` — used by `/pick-team`
   to validate a room PIN and a team's classroom code before a device joins.
 - `loadGame(gameId)` — fetches `games`, `teams`, `game_state`, `game_events` for a

@@ -213,15 +213,94 @@ export const CAT_NAME = { L: "Lý luận", S: "Số liệu thống kê", V: "V�
 export const CAT_COLOR = { L: "#7A2430", S: "#1F4E66", V: "#3F5D45" };
 export const TOTAL_CARDS = 35;
 
-export const DEFAULT_TEAMS = [
-  { id: "red", name: "Đội Đỏ", color: "#7A2430", score: 0 },
-  { id: "blue", name: "Đội Xanh", color: "#1F4E66", score: 0 },
-  { id: "yellow", name: "Đội Vàng", color: "#B8860B", score: 0 },
-  { id: "purple", name: "Đội Tím", color: "#4A3A6B", score: 0 },
-  { id: "orange", name: "Đội Cam", color: "#D97706", score: 0 },
-  { id: "pink", name: "Đội Hồng", color: "#DB2777", score: 0 },
-  { id: "lam", name: "Đội Lam", color: "#2563EB", score: 0 },
+// Nguồn metadata đội duy nhất của phía JS: /pick-team dùng icon/desc/rotate,
+// /pin dùng preview tên đội, DEFAULT_TEAMS (dưới) dùng tên/màu cho hàng teams
+// khởi tạo. Thứ tự 0..6 là "N đội ĐẦU TIÊN" khi tạo phòng — PHẢI khớp thứ tự
+// key/name/color của JSONB trong create_game (supabase/schema.sql), vì DB chỉ
+// giữ bản sao thứ hai của danh sách này; lệch một bên là lệch màu giữa DB và UI.
+export const TEAM_CATALOG = [
+  {
+    id: "red",
+    name: "Đội Đỏ",
+    color: "#7A2430",
+    icon: "star",
+    desc: "Lực lượng nòng cốt, tiên phong trong mọi thử thách.",
+    rotate: "-0.2deg",
+  },
+  {
+    id: "blue",
+    name: "Đội Xanh",
+    color: "#1F4E66",
+    icon: "menu_book",
+    desc: "Trí tuệ chiến lược, nền tảng của tri thức.",
+    rotate: "0.4deg",
+  },
+  {
+    id: "yellow",
+    name: "Đội Vàng",
+    color: "#B8860B",
+    icon: "grass",
+    desc: "Gắn kết bền bỉ, mang lại sự phồn vinh.",
+    rotate: "-0.5deg",
+  },
+  {
+    id: "purple",
+    name: "Đội Tím",
+    color: "#4A3A6B",
+    icon: "local_fire_department",
+    desc: "Ngọn đuốc sáng tạo, dẫn lối tương lai.",
+    rotate: "0.1deg",
+  },
+  {
+    id: "orange",
+    name: "Đội Cam",
+    color: "#D97706",
+    icon: "flag",
+    desc: "Xung kích, đi đầu trong mọi phong trào đổi mới.",
+    rotate: "0.3deg",
+  },
+  {
+    id: "pink",
+    name: "Đội Hồng",
+    color: "#DB2777",
+    icon: "favorite",
+    desc: "Gắn kết cộng đồng, lan tỏa giá trị nhân văn.",
+    rotate: "-0.3deg",
+  },
+  {
+    id: "lam",
+    name: "Đội Lam",
+    color: "#2563EB",
+    icon: "verified_user",
+    desc: "Bảo vệ thành quả, giữ vững kỷ cương hệ thống.",
+    rotate: "0.2deg",
+  },
 ];
+
+// Public API cũ giữ nguyên — giờ suy ra từ TEAM_CATALOG thay vì literal trùng lặp.
+// (Hiện chưa nơi nào import nó; giữ lại để không phá API nếu có code bên ngoài dùng.)
+export const DEFAULT_TEAMS = TEAM_CATALOG.map((t) => ({
+  id: t.id,
+  name: t.name,
+  color: t.color,
+  score: 0,
+}));
+
+// Số đội hợp lệ: 2–7. Giới hạn trên = 7 vì chỉ có 7 bộ metadata (tên/màu/
+// icon) trong TEAM_CATALOG; vượt 7 đòi hỏi thiết kế đội mới.
+export const MIN_TEAM_COUNT = 2;
+export const MAX_TEAM_COUNT = 7;
+
+// Clamp 2–7 + Math.floor + fallback 7 khi NaN — dùng chung cho mọi nơi đọc
+// localStorage['vnr_team_count'] (gameRepository, /pin, /host) để không lặp
+// logic clamp ở từng call site. Chú ý: raw === null (chưa có key) phải rơi
+// về mặc định 7, nhưng Number(null) === 0 nên phải chặn trước khi Number().
+export function normalizeTeamCount(raw) {
+  if (raw === null || raw === undefined || raw === "") return MAX_TEAM_COUNT;
+  const n = Math.floor(Number(raw));
+  if (Number.isNaN(n)) return MAX_TEAM_COUNT;
+  return Math.max(MIN_TEAM_COUNT, Math.min(MAX_TEAM_COUNT, n));
+}
 
 export function shuffle(arr) {
   const a = arr.slice();

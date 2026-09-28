@@ -8,7 +8,7 @@
 
 | Thông tin | Chi tiết |
 |-----------|----------|
-| Số lượng đội | **7 đội** (Đỏ, Xanh, Vàng, Tím, Cam, Hồng, Lam) |
+| Số lượng đội | **2–7 đội** (chọn ở `/pin`, mặc định 7 — phòng dùng N đội đầu: Đỏ, Xanh, Vàng, Tím, Cam, Hồng, Lam) |
 | Số lượng lá bài | **35 lá** (xáo ngẫu nhiên mỗi ván) |
 | Số câu hỏi | **35 câu** |
 | Thời gian trả lời | **15 giây** mỗi câu (trên màn hình Play) |
@@ -17,6 +17,9 @@
 ---
 
 ## 👥 Các đội
+
+Bảng dưới là **7 đội khả dụng**. Khi tạo phòng, Host chọn số đội N (2–7) ở `/pin` —
+phòng dùng **N đội đầu tiên** của danh sách (thứ tự cố định), phần còn lại không được tạo.
 
 | Đội | Màu | Key |
 |-----|-----|-----|
@@ -29,6 +32,15 @@
 | Đội Lam | 💙 `#2563EB` | `lam` |
 
 > Host có thể chỉnh sửa tên đội trực tiếp trên màn hình.
+
+---
+
+## 🚪 Vào game từ đâu?
+
+Màn hình cấu hình `/pin` **không có link từ bất kỳ trang nào** — phải truy cập bằng URL trực tiếp:
+`<deploy-url>/pin`. Tại đây host nhập mã PIN **và chọn số lượng đội (2–7)** trước khi mở `/host`.
+Trang chính `/` cũng có ô nhập PIN riêng nhưng **không có** cấu hình số đội — host muốn đổi số đội
+phải vào `/pin`.
 
 ---
 
@@ -192,14 +204,14 @@ kèm tên và màu đội, tự biến mất sau ~3.5 giây. Có cooldown 3 giâ
 
 ## 🎬 Các bước Setup (nhiều thiết bị)
 
-Tất cả thiết bị (Host và 7 đội) phải trỏ tới **cùng một bản deploy** đã cấu hình
+Tất cả thiết bị (Host và các đội) phải trỏ tới **cùng một bản deploy** đã cấu hình
 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` — xem `supabase/SETUP.md`.
 
 | Bước | Hành động |
 |------|-----------|
-| 1 | Host mở `/host` trên máy trình chiếu — game mới (PIN `1986`) được tạo tự động và lưu trong Supabase |
-| 2 | Host đọc mã PIN + mã đội (`red`, `blue`, `yellow`, `purple`, `orange`, `pink`, `lam`) cho từng nhóm |
-| 3 | Mỗi đại diện đội mở `/pick-team` trên thiết bị riêng, nhập PIN, chọn đội, nhập mã đội |
+| 1 | Host mở `/pin`, nhập mã PIN và chọn số lượng đội (2–7, mặc định 7) — cấu hình lưu vào `localStorage` và chỉ áp dụng khi tạo phòng mới |
+| 2 | Host mở `/host` trên máy trình chiếu — game mới (PIN `1986`) được tạo tự động và lưu trong Supabase |
+| 3 | Host đọc mã PIN + mã đội (`red`, `blue`, `yellow`, `purple`, `orange`, `pink`, `lam`) cho từng nhóm — chỉ các đội thuộc phòng mới có thẻ trên `/pick-team` |
 | 4 | Sau khi tham gia, thiết bị chuyển tới `/play` và chờ Host mở lá bài đầu tiên |
 
 ### Host (Điều phối viên) — `/host`
@@ -241,7 +253,7 @@ Xem chi tiết schema và cấu hình tại `supabase/SETUP.md`.
 Mở PIN 1986
     │
     ▼
-Host tạo game (7 đội, 35 lá bài xáo)
+Host tạo game (N đội, 35 lá bài xáo)
     │
     ▼
 ┌─── Loop: Mỗi lượt ────────────────────────────────┐

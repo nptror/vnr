@@ -1,67 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { findGameByPin, joinGame, fetchTeams, subscribeToGame, createCoalescedReloader } from '../game/gameRepository'
+import { TEAM_CATALOG as TEAMS } from '../game/catalog'
 import { readSession, saveSession } from '../game/session'
 import { isSupabaseConfigured } from '../lib/supabase'
-
-const TEAMS = [
-    {
-        id: 'red',
-        name: 'Đội Đỏ',
-        color: '#7A2430',
-        icon: 'star',
-        desc: 'Lực lượng nòng cốt, tiên phong trong mọi thử thách.',
-        rotate: '-0.2deg',
-    },
-    {
-        id: 'blue',
-        name: 'Đội Xanh',
-        color: '#1F4E66',
-        icon: 'menu_book',
-        desc: 'Trí tuệ chiến lược, nền tảng của tri thức.',
-        rotate: '0.4deg',
-    },
-    {
-        id: 'yellow',
-        name: 'Đội Vàng',
-        color: '#B8860B',
-        icon: 'grass',
-        desc: 'Gắn kết bền bỉ, mang lại sự phồn vinh.',
-        rotate: '-0.5deg',
-    },
-    {
-        id: 'purple',
-        name: 'Đội Tím',
-        color: '#4A3A6B',
-        icon: 'local_fire_department',
-        desc: 'Ngọn đuốc sáng tạo, dẫn lối tương lai.',
-        rotate: '0.1deg',
-    },
-    {
-        id: 'orange',
-        name: 'Đội Cam',
-        color: '#D97706',
-        icon: 'flag',
-        desc: 'Xung kích, đi đầu trong mọi phong trào đổi mới.',
-        rotate: '0.3deg',
-    },
-    {
-        id: 'pink',
-        name: 'Đội Hồng',
-        color: '#DB2777',
-        icon: 'favorite',
-        desc: 'Gắn kết cộng đồng, lan tỏa giá trị nhân văn.',
-        rotate: '-0.3deg',
-    },
-    {
-        id: 'lam',
-        name: 'Đội Lam',
-        color: '#2563EB',
-        icon: 'verified_user',
-        desc: 'Bảo vệ thành quả, giữ vững kỷ cương hệ thống.',
-        rotate: '0.2deg',
-    },
-]
 
 export default function PickTeam() {
     const navigate = useNavigate()
@@ -117,12 +59,26 @@ export default function PickTeam() {
         [dbTeams]
     )
 
+    // Phòng tạo với N đội (2–7) chỉ có đúng N hàng trong DB — grid phải lọc
+    // theo roomKeys, nếu không phòng 3 đội vẫn hiện đủ 7 thẻ và bấm thẻ thừa
+    // sẽ join một team_key không tồn tại. Guard dbTeams.length là bắt buộc:
+    // fetchTeams chạy lần đầu qua poll 5s/realtime, không guard thì grid rỗng
+    // rồi mới có data — nhấp nháy khó chịu ở mỗi lần tải trang.
+    const roomKeys = useMemo(
+        () => new Set(dbTeams.map((t) => t.team_key)),
+        [dbTeams]
+    )
+    const visibleTeams = dbTeams.length ? TEAMS.filter((t) => roomKeys.has(t.id)) : []
+
     const handleDirectJoin = async (team) => {
         if (!isSupabaseConfigured) {
             setError('Supabase chưa được cấu hình.')
             return
         }
         if (takenKeys.has(team.id)) return
+        // DB có thể đổi giữa lúc render (race: host vừa tạo lại phòng) — chặn
+        // ở đây thay vì để joinGame throw TEAM_NOT_FOUND.
+        if (!roomKeys.has(team.id)) return
         setJoining(true)
         setError(null)
         try {
@@ -370,7 +326,7 @@ export default function PickTeam() {
                     )}
 
                     <div className="pt-grid">
-                        {TEAMS.map((team) => {
+                        {visibleTeams.map((team) => {
                             const taken = takenKeys.has(team.id)
                             return (
                                 <article
