@@ -57,10 +57,12 @@ export async function findGameByPin(pin) {
   return data;
 }
 
+// Only caller is /pick-team, which reads exactly these two columns to grey
+// out taken teams live. /play gets its full team rows from loadGame() instead.
 export async function fetchTeams(gameId) {
   const { data, error } = await getClient()
     .from("teams")
-    .select("*")
+    .select("team_key, joined_at")
     .eq("game_id", gameId)
     .order("display_order");
   throwOnError(error);
@@ -102,12 +104,18 @@ export async function joinGame(gameId, teamKey, teamCode) {
   throw notFound;
 }
 
-export async function loadGame(gameId, { includeEvents = false, eventLimit = 100 } = {}) {
+export async function loadGame(
+  gameId,
+  // stateColumns: narrow the game_state select per page. Host keeps "*" (it
+  // needs the full row incl. card_deck/effect_deck/used_card_numbers); /play
+  // passes an explicit list because that row is ~27 kB and polls every 5s.
+  { includeEvents = false, eventLimit = 100, stateColumns = "*" } = {}
+) {
   const client = getClient();
-  const [gameResult, teamsResult, stateResult, eventsResult] = await Promise.all([
+  const [gameResult, teamsResult, rawStateResult, eventsResult] = await Promise.all([
     client.from("games").select("*").eq("id", gameId).single(),
     client.from("teams").select("*").eq("game_id", gameId).order("display_order"),
-    client.from("game_state").select("*").eq("game_id", gameId).single(),
+    client.from("game_state").select(stateColumns).eq("game_id", gameId).single(),
     includeEvents
       ? client
           .from("game_events")
@@ -117,6 +125,13 @@ export async function loadGame(gameId, { includeEvents = false, eventLimit = 100
           .limit(eventLimit)
       : Promise.resolve({ data: [], error: null }),
   ]);
+  let stateResult = rawStateResult;
+  // DB chưa chạy schema.sql mới (chưa có cột active_card) → PostgREST từ chối
+  // select hẹp với PGRST204. Retry đúng một lần với "*" để trang vẫn chạy;
+  // host build mới đã ghi active_card nên thường không bao giờ vào nhánh này.
+  if (stateResult.error?.code === "PGRST204" && stateColumns !== "*") {
+    stateResult = await client.from("game_state").select("*").eq("game_id", gameId).single();
+  }
   throwOnError(gameResult.error);
   throwOnError(teamsResult.error);
   throwOnError(stateResult.error);

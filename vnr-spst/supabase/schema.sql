@@ -99,6 +99,8 @@ CREATE TABLE IF NOT EXISTS game_state (
 
   -- Câu hỏi đang mở
   active_card_num     INT,                                   -- NULL = chưa có câu hỏi
+  active_card         JSONB,                                 -- bản denormalize của lá đang mở; NULL = không có lá mở
+                                                             -- (để /play tra lá bài mà không phải tải cả card_deck)
   attempt_order       JSONB NOT NULL DEFAULT '[]'::JSONB,    -- [team_idx, ...]
   attempt_idx         INT NOT NULL DEFAULT 0,
   answering_team_idx  INT,
@@ -153,6 +155,7 @@ ALTER TABLE game_state ADD COLUMN IF NOT EXISTS answer_submission_team_key TEXT;
 ALTER TABLE game_state ADD COLUMN IF NOT EXISTS revision INT NOT NULL DEFAULT 0;
 ALTER TABLE game_state ADD COLUMN IF NOT EXISTS effect_revealed BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE game_state ADD COLUMN IF NOT EXISTS steal_target_idx INT;
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS active_card JSONB;
 
 ALTER TABLE teams ADD COLUMN IF NOT EXISTS team_code TEXT NOT NULL DEFAULT '';
 UPDATE teams SET team_code = team_key WHERE team_code = '';

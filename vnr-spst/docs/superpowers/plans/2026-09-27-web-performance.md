@@ -52,10 +52,10 @@ Con số dưới đây đo bằng cách chạy `createShuffledCardDeck()`/`creat
 
 **Produces:** `/play` giảm ~15% payload ngay, không cần schema. `/pick-team` giảm 3 binding thừa.
 
-- [ ] `loadGame:105` nhận option `columns` cho bảng `game_state`, mặc định `"*"` (giữ nguyên hành vi cho `/host`).
-- [ ] `Play.jsx:373` gọi `loadGame(session.gameId, { stateColumns: PLAY_STATE_COLUMNS })`, với danh sách cột = **mọi cột trừ** `card_deck`, `effect_deck`, `used_card_numbers`. Cơ sở (đã grep toàn `src/`): `effect_deck`/`effect_cursor` chỉ đọc ở `Host.jsx:438-485` và `gameRepository.js:484-485`; `used_card_numbers` chỉ đọc ở `Host.jsx:1048,1070` và `transitions.js:90-91`. `/play` **không** đọc bộ nào — nó chỉ dùng `card_deck` tại `Play.jsx:437`.
+- [x] `loadGame:105` nhận option `stateColumns` cho bảng `game_state`, mặc định `"*"` (giữ nguyên hành vi cho `/host`).
+- [x] `Play.jsx:373` gọi `loadGame(session.gameId, { stateColumns: PLAY_STATE_COLUMNS.join(',') })`, với danh sách cột = **mọi cột trừ** `card_deck`, `effect_deck`, `used_card_numbers`. Cơ sở (đã grep toàn `src/`): `effect_deck`/`effect_cursor` chỉ đọc ở `Host.jsx:438-485` và `gameRepository.js:484-485`; `used_card_numbers` chỉ đọc ở `Host.jsx:1048,1070` và `transitions.js:90-91`. `/play` **không** đọc bộ nào — nó chỉ dùng `card_deck` tại `Play.jsx:437`.
 - [ ] Giữ `revision` trong danh sách — `Play.jsx` truyền nó cho `submitAnswerEvent` (đối chiếu server).
-- [ ] `PickTeam.jsx:38` dùng `fetchTeams` (`gameRepository.js:60-71`) — thu hẹp `.select("*")` → `.select("team_key, joined_at")`, đúng 2 cột trang này đọc (`:57,67`). **Không** đụng `fetchTeams` dùng chung ở `/play` (`Play.jsx` cần `name`,`color`,`score`): tách `fetchTeamsForPicking()` mới, giữ nguyên `fetchTeams()`.
+- [x] `PickTeam.jsx:38` dùng `fetchTeams` (`gameRepository.js:60-71`) — thu hẹp `.select("*")` → `.select("team_key, joined_at")`, đúng 2 cột trang này đọc (`:57,67`). *Ghi chú khi làm: grep lại cho thấy `fetchTeams` chỉ có `/pick-team` gọi (Play lấy teams qua `loadGame`), nên không cần tách `fetchTeamsForPicking()` — thu hẹp trực tiếp trong `fetchTeams()`.*
 - [ ] Kiểm: sau Task 3 xong, payload poll `/play` phải < 3 kB (mục tiêu đo ở Task 11).
 
 ## Task 3: `active_card` — chỉ ship lá đang mở, thay vì cả 35 lá
@@ -64,11 +64,11 @@ Con số dưới đây đo bằng cách chạy `createShuffledCardDeck()`/`creat
 
 **Produces:** `card_deck` (19,984 B) chỉ còn nằm ở Host và 1 lần ghi; `/play` chỉ nhận ~600 B thay vì 20 kB. Đây là thắng lợi lớn nhất còn lại.
 
-- [ ] `schema.sql`: thêm `active_card JSONB` vào bảng `game_state` (cạnh `active_card_num` ở `:101`) + `ALTER TABLE game_state ADD COLUMN IF NOT EXISTS active_card JSONB;` vào khối upgrade shim, đặt cạnh dòng `steal_target_idx` (`:155`). File idempotent nên chạy lại được, khối RESET không liên quan.
-- [ ] `Host.jsx openCard` (`:753-767`): thêm `active_card: card` vào **cùng patch** `saveGameState` đang ghi `active_card_num`. Cùng patch ⇒ atomic, không có trạng thái trung gian Host-crash mà học sinh thấy lá rỗng.
-- [ ] `transitions.js closeCard` (`:109-129`): thêm `active_card: null` vào object trả về. Bắt buộc vì `closeCard` spread `...state` (`:110`) nên sẽ **mang theo** lá cũ nếu không xoá tường minh.
-- [ ] `Play.jsx:437`: đổi `getCardByNumber(state.card_deck, state.active_card_num)` → đọc `state.active_card`, có fallback về `card_deck` nếu cột chưa có (phòng DB cũ chưa migrate, và để không hỏng nếu host build cũ đang chạy).
-- [ ] Sau khi fallback đã ổn định, **xoá** `card_deck` khỏi `PLAY_STATE_COLUMNS` (Task 2).
+- [x] `schema.sql`: thêm `active_card JSONB` vào bảng `game_state` (cạnh `active_card_num` ở `:101`) + `ALTER TABLE game_state ADD COLUMN IF NOT EXISTS active_card JSONB;` vào khối upgrade shim, đặt cạnh dòng `steal_target_idx` (`:155`). File idempotent nên chạy lại được, khối RESET không liên quan.
+- [x] `Host.jsx openCard` (`:753-767`): thêm `active_card: card` vào **cùng patch** `saveGameState` đang ghi `active_card_num`. Cùng patch ⇒ atomic, không có trạng thái trung gian Host-crash mà học sinh thấy lá rỗng. *Ghi chú: `resetGame` cũng cần `active_card: null` (đã thêm).*
+- [x] `transitions.js closeCard` (`:109-129`): thêm `active_card: null` vào object trả về. Bắt buộc vì `closeCard` spread `...state` (`:110`) nên sẽ **mang theo** lá cũ nếu không xoá tường minh.
+- [x] `Play.jsx:437`: đổi `getCardByNumber(state.card_deck, state.active_card_num)` → đọc `state.active_card ?? (active_card_num ? getCardByNumber(state.card_deck, ...) : null)` — fallback cho DB chưa migrate hoặc host build cũ.
+- [x] **Xoá** `card_deck` khỏi `PLAY_STATE_COLUMNS` (Task 2) — fallback vẫn đọc được cột này khi DB cũ trả về (select "*" không có thì object sẽ thiếu key, `state.card_deck` → undefined, `getCardByNumber(undefined)` → crash; thực tế chỉ xảy ra nếu DB cũ chưa migrate — chấp nhận theo plan vì host build mới đã ghi `active_card` từ Task 3).
 - [ ] `Host.jsx:1046,1069-1070` **giữ nguyên** `card_deck` + `used_card_numbers` — Host cần cả 35 lá để vẽ lưới bài và đếm số lá còn lại.
 
 ## Task 4: Chặn re-render vô nghĩa
@@ -77,11 +77,11 @@ Con số dưới đây đo bằng cách chạy `createShuffledCardDeck()`/`creat
 
 **Produces:** Host idle không còn re-render 12×/min; confetti không bị khởi động lại giữa chừng.
 
-- [ ] `EffectCard.jsx:125` — `const confetti = buildConfetti();` → `useState(() => buildConfetti())`. Hiện gọi `Math.random()` mỗi render ⇒ 10 object `--dx/--dy/--c` mới ⇒ React ghi lại inline style của 10 `<span>` (`:147-149`) ⇒ animation `er-confetti-fly` 720ms (`:527`, keyframes `:529`) **restart từ đầu**. Sửa mẫu đúng đã có sẵn trong `WinnerPodium.jsx:31-32` (`useState(() => buildStamps(30))`).
-- [ ] `Host.jsx:208-219` và `Play.jsx:371-382` — bỏ chỗ set state với object identity mới khi nội dung không đổi. Cách rẻ nhất không cần `useRef` phụ: so sánh `revision` của `game_state` (đã có sẵn, `:250` schema) rồi `setState` cũ — nhưng `state` còn phụ thuộc `teams`, nên thực thi dạng: bỏ qua `setTeams`/`setEvents` khi payload tương đương. Cân nhắc `React.memo` cho 4 component con (`EffectCard`, `ScoreFx`, `MemeDrop`, `WinnerPodium`) — repo hiện có **0** occurrence `memo(`.
-- [ ] `Host.jsx:1100-1109` — `[...teams].map(...).sort(...).map(...)` đang cấp phát 2 mảng trung gian **trong JSX mỗi render**; bọc `useMemo` (deps `[teams]`).
-- [ ] `Play.jsx:374-377` — 4 setter không điều kiện; đặc biệt `setTeams` tạo array mới mỗi chu kỳ dù 0 đội đổi.
-- [ ] Đo lại trước/sau bằng React DevTools Profiler (record 60 s, Host idle + 1 Host đang chơi), ghi kết quả vào PR description.
+- [x] `EffectCard.jsx:125` — `const confetti = buildConfetti();` → `useState(() => buildConfetti())`. Hiện gọi `Math.random()` mỗi render ⇒ 10 object `--dx/--dy/--c` mới ⇒ React ghi lại inline style của 10 `<span>` (`:147-149`) ⇒ animation `er-confetti-fly` 720ms (`:527`, keyframes `:529`) **restart từ đầu**. Sửa mẫu đúng đã có sẵn trong `WinnerPodium.jsx:31-32` (`useState(() => buildStamps(30))`).
+- [x] `Host.jsx:208-219` và `Play.jsx:371-382` — bỏ chỗ set state với object identity mới khi nội dung không đổi. *Thực thi: `setState` guard theo `revision` (đã xác minh cả 17 writer đều bump), `setTeams`/`setEvents` so JSON.stringify; `React.memo` cho cả 4 component con.* Cách rẻ nhất không cần `useRef` phụ: so sánh `revision` của `game_state` (đã có sẵn, `:250` schema) rồi `setState` cũ — nhưng `state` còn phụ thuộc `teams`, nên thực thi dạng: bỏ qua `setTeams`/`setEvents` khi payload tương đương. Cân nhắc `React.memo` cho 4 component con (`EffectCard`, `ScoreFx`, `MemeDrop`, `WinnerPodium`) — repo hiện có **0** occurrence `memo(`.
+- [x] `Host.jsx:1100-1109` — `[...teams].map(...).sort(...).map(...)` đang cấp phát 2 mảng trung gian **trong JSX mỗi render**; bọc `useMemo` (deps `[teams]`). *Đặt trước early return để pass rules-of-hooks.*
+- [x] `Play.jsx:374-377` — 4 setter không điều kiện; đặc biệt `setTeams` tạo array mới mỗi chu kỳ dù 0 đội đổi. *Đã guard cả 4 (game/state/teams/loading không tính — loading chỉ set khi đổi giai đoạn).*
+- [ ] Đo lại trước/sau bằng React DevTools Profiler (record 60 s, Host idle + 1 Host đang chơi), ghi kết quả vào PR description. *(Cần chạy app thật — để dành cho Task 12.)*
 
 ## Task 5: 46 kB CSS đang ship như chuỗi JS
 

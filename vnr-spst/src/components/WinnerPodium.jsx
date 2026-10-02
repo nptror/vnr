@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { playSound } from '../game/sounds'
 
 const STAMP_TEXTS = ['CHIẾN THẮNG', 'VICTORY', 'XUẤT SẮC', 'VÔ ĐỊCH']
@@ -26,7 +26,7 @@ function buildConfetti(count) {
   }))
 }
 
-export default function WinnerPodium({ rankList = [], onClose, onNewGame }) {
+function WinnerPodium({ rankList = [], onClose, onNewGame }) {
   const [visible, setVisible] = useState(false)
   const [stamps] = useState(() => buildStamps(30))
   const [confetti] = useState(() => buildConfetti(60))
@@ -191,3 +191,8 @@ export default function WinnerPodium({ rankList = [], onClose, onNewGame }) {
     </div>
   )
 }
+
+// memo: overlay chỉ mở lúc kết thúc ván — Host idle re-render 12 lần/phút
+// không cần render lại podium (props là state object + 2 callback ổn định).
+export default memo(WinnerPodium)
+

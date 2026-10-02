@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import MEMES from '../config/memes'
 
 /**
@@ -78,7 +79,7 @@ function MemeImg({ file, label }) {
   )
 }
 
-export default function MemeDrop({ activeMemes = [] }) {
+function MemeDrop({ activeMemes = [] }) {
   return (
     <>
       <style>{STYLE}</style>
@@ -106,3 +107,9 @@ export default function MemeDrop({ activeMemes = [] }) {
     </>
   )
 }
+
+// memo: activeMemes là mảng từ useMemeDrop — reference đổi khi có meme mới,
+// giữ nguyên phần còn lại; chặn re-render đếm ngược cooldown 20 Hz của
+// MemePanel lan sang layer sticker.
+export default memo(MemeDrop)
+

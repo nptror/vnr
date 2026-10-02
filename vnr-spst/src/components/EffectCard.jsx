@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { rotationForDiceValue } from '../game/transitions'
 import { EFFECT_COLORS } from '../game/catalog'
 
@@ -109,7 +109,7 @@ function DiceCube({ state }) {
 // Một form duy nhất cho cả 6 loại hiệu ứng: banner màu theo loại → emblem
 // icon → mô tả → dock hành động cố định ở đáy lá. Nội dung dock đổi theo hiệu
 // ứng nhưng kích thước và cấu trúc lá luôn giống hệt nhau.
-export default function EffectCard({
+function EffectCard({
   state,
   teams,
   teamName,
@@ -122,7 +122,11 @@ export default function EffectCard({
   const [dismissed, setDismissed] = useState(false);
   const [playFx] = useState(() => animate);
 
-  const confetti = buildConfetti();
+  // Dựng đúng một lần khi mount (mẫu của WinnerPodium): gọi thẳng trong render
+  // tạo 10 object --dx/--dy/--c mới mỗi lần → React ghi lại inline style của
+  // 10 <span> → animation er-confetti-fly restart từ đầu mỗi re-render
+  // (12 lần/phút khi Host poll).
+  const [confetti] = useState(() => buildConfetti());
   const resolved = Boolean(state.show_eff_continue);
   const dicePendingRoll =
     state.eff_body_buttons === "dice" && !state.dice_rolling && !state.dice_result_visible;
@@ -641,3 +645,8 @@ const STYLE = `
     .er-back-mark { font-size: 90px; }
   }
 `
+
+// memo: Host re-render 12 lần/phút khi idle poll — mọi prop (state object giữ
+// nguyên reference giữa các poll nếu revision không đổi, teams, callbacks) bất
+// biến ⇒ bọc memo bỏ được toàn bộ render vô nghĩa này.
+export default memo(EffectCard);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { memo, useState, useEffect } from 'react'
 
 /**
  * ScoreFx — animation điểm số trên màn Host (cosmetic, local-only).
@@ -71,7 +71,7 @@ function TeamCard({ side, data, type }) {
   )
 }
 
-export default function ScoreFx({ fx }) {
+function ScoreFx({ fx }) {
   const coins = [0, 1, 2, 3, 4]
   return (
     <>
@@ -104,6 +104,10 @@ export default function ScoreFx({ fx }) {
     </>
   )
 }
+
+// memo: fx object là reference bất biến giữa các lần set (useState giữ nguyên);
+// Host re-render 12 lần/phút khi idle poll không còn chạm tới overlay này.
+export default memo(ScoreFx)
 
 const STYLE = `
   .sf-overlay {

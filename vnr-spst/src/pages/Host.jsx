@@ -200,6 +200,24 @@ export default function Host() {
     teamsRef.current = teams;
   }, [teams]);
 
+  // So sánh mảng theo nội dung — poll/realtime re-fire 12 lần/phút kể cả khi
+  // 0 byte đổi; JSON.stringify mỗi chu kỳ (vài kB) rẻ hơn nhiều so với
+  // re-render toàn cây Host.
+  const sameList = (a, b) =>
+    a === b || (a?.length === b?.length && JSON.stringify(a) === JSON.stringify(b));
+
+  // Bảng điểm sắp theo score giảm dần; `i` giữ index gốc trong mảng teams
+  // để đổi tên và highlight đội đang trả lời vẫn đúng. useMemo tránh cấp
+  // phát 2 mảng trung gian trong JSX mỗi render (12 lần/phút khi idle).
+  // Đặt trước mọi early return (rules-of-hooks).
+  const rankedTeams = useMemo(
+    () =>
+      teams
+        .map((t, i) => ({ t, i }))
+        .sort((a, b) => b.t.score - a.t.score),
+    [teams]
+  );
+
   // Coalesced sync: realtime notification bursts (including the Host's own
   // writes echoing back) collapse into at most one in-flight fetch plus one
   // trailing rerun. The event-log query is capped to the latest 100 rows.
@@ -209,9 +227,13 @@ export default function Host() {
       try {
         const data = await loadGame(gameId, { includeEvents: true });
         setGamePin(data.game?.pin ?? null);
-        setTeams(data.teams);
-        setState(data.state);
-        setEvents(data.events);
+        // Guard setState vô nghĩa: bỏ qua khi payload tương đương. `revision`
+        // là vân tay của game_state — mọi writer đều bump revision trước khi
+        // ghi (invariant của optimistic concurrency), nên revision không đổi
+        // ⇒ state không đổi, không cần deep-compare.
+        setState((prev) => (prev?.revision === data.state?.revision ? prev : data.state));
+        setTeams((prev) => (sameList(prev, data.teams) ? prev : data.teams));
+        setEvents((prev) => (sameList(prev, data.events) ? prev : data.events));
         setLoading(false);
       } catch (err) {
         setError(err.message || String(err));
@@ -754,6 +776,7 @@ export default function Host() {
         ...s,
         phase: "answering",
         active_card_num: num,
+        active_card: card,
         attempt_order: order,
         attempt_idx: 0,
         answering_team_idx: order[0],
@@ -970,6 +993,7 @@ export default function Host() {
         effect_deck: effectDeck,
         effect_cursor: 0,
         active_card_num: null,
+        active_card: null,
         attempt_order: [],
         attempt_idx: 0,
         answering_team_idx: 0,
@@ -1097,9 +1121,7 @@ export default function Host() {
           {/* Display order: highest score first. `i` stays the team's index in
               the underlying teams array so renaming and the active highlight
               keep working. */}
-          {[...teams]
-            .map((t, i) => ({ t, i }))
-            .sort((a, b) => b.t.score - a.t.score)
+          {rankedTeams
             .map(({ t, i }) => (
               <div key={t.team_key} className={"team-row" + (i === (state.answering_team_idx ?? 0) ? " active" : "")}>
                 <div className="team-color" style={{ background: t.color }} />

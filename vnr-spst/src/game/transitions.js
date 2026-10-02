@@ -111,6 +111,9 @@ export function closeCard(state, teams) {
     phase: allCardsUsed ? "finished" : "selecting_card",
     used_card_numbers: usedCardNumbers,
     active_card_num: null,
+    // Tường minh xoá lá denormalized — spread ...state phía trên sẽ mang theo
+    // lá cũ vào trạng thái đóng nếu không ghi đè.
+    active_card: null,
     attempt_order: [],
     attempt_idx: 0,
     answering_team_idx: nextSelectorIndex,

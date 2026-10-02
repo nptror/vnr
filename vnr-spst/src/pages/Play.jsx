@@ -10,6 +10,42 @@ import MemePanel from '../components/MemePanel.jsx'
 const OPTION_LABELS = ['A', 'B', 'C', 'D']
 const ANSWER_SECONDS = 15
 
+// Cột game_state mà /play đọc. Loại 3 cột JSONB lớn (card_deck ~20 kB,
+// effect_deck, used_card_numbers — chỉ Host đọc) để poll 5 s rơi từ ~27 kB
+// xuống mức nhỏ. Lá đang mở đọc từ cột denormalized `active_card` (Host ghi
+// trong cùng patch với active_card_num).
+const PLAY_STATE_COLUMNS = [
+  'phase',
+  'active_card',
+  'deadline_at',
+  'answering_team_key',
+  'answer_submission_team_key',
+  'revision',
+  'active_card_num',
+  'attempt_idx',
+  'answering_team_idx',
+  'attempt_label',
+  'option_states',
+  'show_explain',
+  'show_effect',
+  'effect_type',
+  'effect_icon',
+  'effect_label',
+  'effect_desc',
+  'effect_team_idx',
+  'effect_result',
+  'show_eff_continue',
+  'eff_body_buttons',
+  'effect_revealed',
+  'show_dice',
+  'dice_rolling',
+  'dice_value',
+  'dice_result_visible',
+  'show_winner',
+  'winner_name',
+  'rank_list',
+]
+
 const PLAY_STYLE = `
   .play-page {
     min-height: 100svh;
@@ -363,6 +399,11 @@ export default function Play() {
     if (!session) navigate('/pick-team', { replace: true })
   }, [session, navigate])
 
+  // So sánh mảng theo nội dung — poll 5 s tạo object/array mới mỗi chu kỳ dù
+  // 0 đội đổi; stringify vài trăm byte rẻ hơn nhiều so với re-render cả trang.
+  const sameList = (a, b) =>
+    a === b || (a?.length === b?.length && JSON.stringify(a) === JSON.stringify(b))
+
   // Coalesced sync: realtime notification bursts collapse into at most one
   // in-flight fetch (+ one trailing rerun). Players never download the
   // growing game_events log.
@@ -370,10 +411,13 @@ export default function Play() {
     if (!session) return null
     return createCoalescedReloader(async () => {
       try {
-        const data = await loadGame(session.gameId)
-        setGame(data.game)
-        setTeams(data.teams)
-        setState(data.state)
+        const data = await loadGame(session.gameId, { stateColumns: PLAY_STATE_COLUMNS.join(',') })
+        // Guard setState vô nghĩa: `revision` là vân tay của game_state (mọi
+        // writer đều bump trước khi ghi); `game.status` đổi rất hiếm. teams so
+        // theo nội dung vì điểm đội đổi không qua game_state.revision.
+        setGame((prev) => (prev?.status === data.game?.status ? prev : data.game))
+        setState((prev) => (prev?.revision === data.state?.revision ? prev : data.state))
+        setTeams((prev) => (sameList(prev, data.teams) ? prev : data.teams))
         setLoading(false)
       } catch (err) {
         setError(err.message || String(err))
@@ -434,7 +478,13 @@ export default function Play() {
   }
 
   const myTeam = teams.find((t) => t.team_key === session.teamKey)
-  const activeCard = state.active_card_num ? getCardByNumber(state.card_deck, state.active_card_num) : null
+  // Lá đang mở từ cột denormalized active_card; fallback về card_deck chỉ
+  // có giá trị nếu payload chứa deck (DB cũ chưa migrate + retry legacy đã
+  // rơi vào select "*"). Guard Object.isArray-ish chống deck undefined.
+  const activeCard = state.active_card
+    ?? (state.active_card_num && Array.isArray(state.card_deck)
+      ? getCardByNumber(state.card_deck, state.active_card_num)
+      : null)
   const answeringIdx = state.answering_team_idx ?? 0
   const answeringTeam = teams[answeringIdx]
   const isMyTurn =
