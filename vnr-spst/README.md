@@ -1,4 +1,4 @@
-# Hành Trình Đổi Mới — multi-device classroom game
+# Thử Vận May — multi-device classroom quiz game
 
 A one-Host, 2–7 team classroom quiz game. Every device (the Host's screen and each
 team's device) syncs through Supabase — see `docs/superpowers/specs/2026-08-20-multi-device-game-design.md`

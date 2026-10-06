@@ -120,12 +120,12 @@ export default function Landing() {
       <div className="reg-body">
         <main className="doc-card">
           {/* Stamp */}
-          <div className="stamp">Văn Kiện<br />Đảng</div>
+          <div className="stamp">THỬ<br />VẬN<br />MAY</div>
 
           {/* Masthead */}
           <header className="masthead">
-            <h1>Hành Trình Đổi Mới</h1>
-            <p>Văn kiện phiên làm việc 1986</p>
+            <h1>Thử Vận May</h1>
+            <p>Xúc xắc, lá phép và 35 cơ hội may mắn</p>
           </header>
 
 
@@ -154,7 +154,7 @@ export default function Landing() {
               <Link to="/pick-team" className="role-card player" onClick={savePin}>
                 <div>
                   <div className="role-name">Người Chơi</div>
-                  <p className="role-desc">Tham gia trả lời câu hỏi.</p>
+                  <p className="role-desc">Trả lời câu hỏi, tung xúc xắc, bốc lá phép.</p>
                 </div>
                 <div className="go-arrow"><div className="box">→</div></div>
               </Link>
@@ -163,8 +163,8 @@ export default function Landing() {
         </main>
 
         <footer className="reg-footer">
-          <span>© 1986-2024 BAN TUYÊN GIÁO TRUNG ƯƠNG</span>
-          <span>Hệ thống lưu trữ số liệu 1986-2024</span>
+          <span>© 2026 THỬ VẬN MAY</span>
+          <span>Trò chơi lớp học nhiều thiết bị · 2–7 đội</span>
         </footer>
       </div>
     </>

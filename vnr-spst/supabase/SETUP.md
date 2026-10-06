@@ -1,4 +1,4 @@
-# Setup Supabase Realtime — Hành Trình Đổi Mới
+# Setup Supabase Realtime — Thử Vận May
 
 **Architecture:**
 - **Questions + Cards** → Host tạo một bộ bài cho mỗi ván mới, lưu trong `game_state`

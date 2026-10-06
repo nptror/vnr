@@ -279,13 +279,13 @@ export default function PickTeam() {
             <div className="pt-page">
                 <nav className="pt-nav">
                     <div className="pt-nav-inner">
-                        <span className="pt-nav-title">Hành Trình Đổi Mới</span>
+                        <span className="pt-nav-title">Thử Vận May</span>
                     </div>
                 </nav>
 
                 <main className="pt-main">
                     <header className="pt-header">
-                        <h1>XÁC ĐỊNH ĐƠN VỊ CHIẾN ĐẤU</h1>
+                        <h1>CHỌN ĐỘI MAY MẮN CỦA BẠN</h1>
                         <p>Chọn đội của bạn và nhập mã đội để tham gia.</p>
                     </header>
 
@@ -366,7 +366,7 @@ export default function PickTeam() {
                 </main>
 
                 <footer className="pt-footer">
-                    <div className="pt-footer-copy">© 1986 BAN TUYÊN GIÁO TRUNG ƯƠNG - LƯU TRỮ QUỐC GIA</div>
+                    <div className="pt-footer-copy">© 2026 THỬ VẬN MAY - TRÒ CHƠI MAY MẮN CHO LỚP HỌC</div>
                 </footer>
 
             </div>

@@ -1074,6 +1074,18 @@ export default function Host() {
 
   return (
     <div className="host-wrap">
+      <div className="masthead">
+        <div>
+          <h1>Thử Vận May</h1>
+          <div className="sub">Xúc xắc · Lá phép · 35 câu hỏi</div>
+        </div>
+        <div className="stamp">
+          May
+          <br />
+          Mắn
+        </div>
+      </div>
+
       <div className="legend">
         <span style={{ background: CAT_COLOR.L }}>{CAT_NAME.L}</span>
         <span style={{ background: CAT_COLOR.S }}>{CAT_NAME.S}</span>

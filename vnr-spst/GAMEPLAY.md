@@ -1,4 +1,4 @@
-# 🎮 Hướng dẫn trò chơi — HÀNH TRÌNH ĐỔI MỚI
+# 🎮 Hướng dẫn trò chơi — THỬ VẬN MAY
 
 > Trò chơi thuyết trình lịch sử Đảng — Đại hội VI (1986) → Đại hội VIII (1996) → Đại hội IX (2001) → 2006
 

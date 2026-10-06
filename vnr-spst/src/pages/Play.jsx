@@ -582,7 +582,7 @@ export default function Play() {
       <div className="play-page">
         <header className="play-header">
           <div className="play-header-inner">
-            <div className="play-title">HÀNH TRÌNH ĐỔI MỚI</div>
+            <div className="play-title">THỬ VẬN MAY</div>
           </div>
         </header>
 
@@ -662,7 +662,7 @@ export default function Play() {
               ) : !activeCard ? (
                 <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#887272', fontFamily: "'Noto Serif', serif" }}>
                   <div style={{ fontSize: 48, marginBottom: '1rem' }}>⏳</div>
-                  <div style={{ fontSize: 18, fontWeight: 600, marginBottom: '0.5rem' }}>Chờ câu hỏi từ Ban Tổ chức</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, marginBottom: '0.5rem' }}>Chờ câu hỏi từ Người Điều Phối</div>
                   <div style={{ fontSize: 14 }}>Host sẽ mở lá bài trên màn hình chính</div>
                 </div>
               ) : (
@@ -719,7 +719,7 @@ export default function Play() {
 
         <footer className="play-footer">
           <div className="play-footer-inner">
-            <span className="play-footer-copy">© 1986-2026 BAN TUYÊN GIÁO TRUNG ƯƠNG</span>
+            <span className="play-footer-copy">© 2026 THỬ VẬN MAY</span>
           </div>
         </footer>
       </div>

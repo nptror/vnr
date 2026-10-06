@@ -1,7 +1,7 @@
 import { memo, useEffect, useState } from 'react'
 import { playSound } from '../game/sounds'
 
-const STAMP_TEXTS = ['CHIẾN THẮNG', 'VICTORY', 'XUẤT SẮC', 'VÔ ĐỊCH']
+const STAMP_TEXTS = ['MAY MẮN', 'VICTORY', 'XUẤT SẮC', 'VÔ ĐỊCH']
 const CONFETTI_COLORS = ['#c9a227', '#7a2430', '#3F5D45', '#1F4E66', '#f4d47c', '#D9A930', '#ff9098']
 
 function buildStamps(count) {
@@ -111,13 +111,13 @@ function WinnerPodium({ rankList = [], onClose, onNewGame }) {
       </div>
 
       <header className="wp-header">
-        <span className="wp-header-title">HÀNH TRÌNH ĐỔI MỚI</span>
+        <span className="wp-header-title">THỬ VẬN MAY</span>
       </header>
 
       <main className="wp-main">
         <div className="wp-doc-title">
-          <h1>Báo Cáo Thành Tích Chung Cuộc</h1>
-          <p>Hội thi — Bảng xếp hạng cuối cùng</p>
+          <h1>Bảng Xếp Hạng May Mắn</h1>
+          <p>Thử Vận May — Kết quả chung cuộc</p>
         </div>
 
         <div className="wp-podium-container">

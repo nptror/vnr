@@ -223,11 +223,11 @@ export default function PinEntry() {
       <style>{STYLE}</style>
       <div className="pin-body">
         <main className="pin-card">
-          <div className="pin-stamp">Mật<br />Lệnh</div>
+          <div className="pin-stamp">May<br />Mắn</div>
 
           <header className="pin-masthead">
             <h1>Mã PIN Phòng Chơi</h1>
-            <p>Thiết lập mã trước khi vào vai</p>
+            <p>Thiết lập mã may mắn trước khi vào vai</p>
           </header>
 
           <div className="pin-input-row">

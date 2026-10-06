@@ -1,4 +1,4 @@
-# DESIGN.md — Hành Trình Đổi Mới
+# DESIGN.md — Thử Vận May
 
 Tài liệu này ghi lại **design system đang thực sự chạy trong code** của app `vnr-spst`,
 để người làm tiếp có thể thêm màn hới / component mới mà vẫn giữ được đúng "chất"
@@ -13,20 +13,22 @@ của sản phẩm. Mọi giá trị ở đây đều truy được về file ng
 
 | Mục | Giá trị |
 |-----|---------|
-| Tên sản phẩm | **HÀNH TRÌNH ĐỔI MỚI** |
+| Tên sản phẩm | **THỬ VẬN MAY** |
 | Chủ đề | Trò chơi thuyết trình lịch sử Đảng — Đại hội VI (1986) → VIII (1996) → IX (2001) → 2006 |
 | Ngôn ngữ UI | Tiếng Việt, không dịch tự động |
 | Định dạng hình | Desktop-first (máy chiếu của Host) + mobile-first cho thiết bị từng đội |
 | Stack UI | React 19 + Vite, **không có UI framework / component library** — toàn bộ CSS viết tay |
 | Nguồn dữ liệu | Supabase (Postgres + Realtime) — không liên quan design, xem `docs/superpowers/specs/` |
 
-### Ngôn ngữ thị giác: "Văn kiện Lưu trữ quốc gia"
+### Ngôn ngữ thị giác: "Ấn phẩm may mắn cổ điển"
 
-Toàn bộ giao diện mô phỏng **một tờ văn kiện hành chính cũ**: giấy vàng đã ngả, mực
-son đỏ thẫm, viền kép, con dấu tròn nghiêng, góc bìa hơi lệch, đổ bóng kiểu in
-(offset cứng), số liệu gõ như máy đánh chữ. Mọi chi tiết "sang trọng hiện đại"
+Toàn bộ giao diện mô phỏng **một ấn phẩm cổ điển của trò chơi thử vận may**: giấy vàng
+đã ngả, mực son đỏ thẫm, viền kép, con dấu tròn nghiêng, góc bìa hơi lệch, đổ bóng kiểu
+in (offset cứng), số liệu gõ như máy đánh chữ. Mọi chi tiết "sang trọng hiện đại"
 (biển gradient kim loại, blur, bo góc lớn) là **ngoại lệ có chủ đích** dành riêng cho
 các khoảnh khắc ăn mừng (bục nhấp, lá hiệu ứng), không áp dụng cho màn hình nhập liệu.
+Cụm mật ngữ may mắn: **xúc xắc 🎲, cỏ bốn lá 🍀, vàng kim may mắn** — chỉ xuất hiện ở
+con dấu, masthead và chân trang, không can thiệp lá bài và các hiệu ứng.
 
 ---
 
@@ -329,9 +331,9 @@ Chỉ có 3 loại, dùng để phá bề mặt phẳng — không thêm loại 
 **Cấu trúc chân trang bản quyền** — một dấu hiệu nhận diện xuất hiện ở cả 3 trang
 Player: nền `#d3d9f0`, viền trên hairline, chữ `12–13px` màu `#554243`, canh giữa,
 `letter-spacing` vừa, chuyển hàng ngang ở ≥540–640px.
-Bản chữ dùng: `© 1986-2026 BAN TUYÊN GIÁO TRUNG ƯƠNG` (`/play`),
-`© 1986-2024 BAN TUYÊN GIÁO TRUNG ƯƠNG` (`/`),
-`© 1986 BAN TUYÊN GIÁO TRUNG ƯƠNG - LƯU TRỮ QUỐC GIA` (`/pick-team`).
+Bản chữ dùng: `© 2026 THỬ VẬN MAY` (`/play`),
+`© 2026 THỬ VẬN MAY` + `Trò chơi lớp học nhiều thiết bị · 2–7 đội` (`/`),
+`© 2026 THỬ VẬN MAY - TRÒ CHƠI MAY MẮN CHO LỚP HỌC` (`/pick-team`).
 
 ---
 
@@ -343,8 +345,8 @@ Nền `#fdfbf7` · `border: 3px double #141b2c` · không bo góc (Landing/PinEn
 Bên trong: masthead (h1 uppercase serif + sub italic/xám) → `hr` hairline → nội dung.
 **Con dấu tròn** đặc trưng: 90–96px, `border: 2px dashed #ba1a1a`, chữ serif 700
 `11–12px` uppercase `ls .08em`, `opacity .8`, `transform: rotate(15deg)`, `z-index: 10`,
-`pointer-events: none`. Nội dung dấu: `VĂN KIỆN ĐẢNG` (Landing), `MẬT LỆNH` (`/pin`),
-`VĂN KIỆN ĐẢNG` (Host, viền solid maroon).
+`pointer-events: none`. Nội dung dấu: `THỬ VẬN MAY` (Landing), `MAY MẮN` (`/pin`),
+`MAY MẮN` (Host, viền solid maroon).
 
 ### 5.2 Lá bài trên bảng Host (`.ncard`)
 `90×110px` · nền trắng · `border-top: 6px solid var(--cat-color)` (màu nhóm câu) ·
@@ -526,7 +528,7 @@ Ngoài ra: `@media (max-width: 640px), (max-height: 720px)` cho EffectCard — c
 ## 9. Ngôn ngữ & nội dung
 
 - Tiếng Việt không dấu hoặc có dấu đều dùng; tên game luôn VIETHOA khi là tiêu đề
-  (`HÀNH TRÌNH ĐỔI MỚI`).
+  (`THỬ VẬN MAY`).
 - Nhãn hành động trong nút thường VIETHOA + `letter-spacing` rộng
   (`THAM GIA`, `TIẾP TỤC VÀO VÁN CHƠI`, `Kết thúc & xếp hạng` — nút Host dùng
   sentence case vì to hơn và nhiều chữ).
