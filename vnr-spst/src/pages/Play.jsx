@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getCardByNumber } from '../game/catalog'
 import { loadGame, subscribeToGame, createCoalescedReloader, submitAnswerEvent, submitDiceRollEvent, submitEffectTargetEvent, sendMemeDrop } from '../game/gameRepository'
@@ -26,7 +26,6 @@ const PLAY_STATE_COLUMNS = [
   'answering_team_idx',
   'attempt_label',
   'option_states',
-  'show_explain',
   'show_effect',
   'effect_type',
   'effect_icon',
@@ -48,44 +47,141 @@ const PLAY_STATE_COLUMNS = [
 
 const PLAY_STYLE = `
   .play-page {
+    /* ── Art Deco Casino Tokens (Task 1) — scoped tới .play-page ── */
+    --casino-bg: #e6ebf0;
+    --paper: #fcf9f2;
+    --paper-warm: #f6f3ec;
+    --paper-line: #d1c5b0;
+    --gold: #caa048;
+    --gold-dark: #8c671a;
+    --gold-pale: #f7e6a4;
+    --gold-cream: #ede3d0;
+    --navy-950: #091424;
+    --navy-900: #0b192c;
+    --navy-800: #0e1f38;
+    --navy-700: #162b48;
+    --maroon-700: #751a24;
+    --maroon-800: #5c131c;
+    --maroon-900: #480d14;
+    --ink: #111927;
+    --red: #ba1a1a;
+    --forest: #3F5D45;
+
+    /* Chiều cao .play-header (position: sticky; top: 0) — dùng làm offset cho cột
+       LƯỢT THI ĐẤU dính bên dưới header khi trang cuộn. Đây chỉ là giá trị dự
+       phòng trước khi đo: component ghi đè bằng chiều cao thật qua ResizeObserver. */
+    --play-header-h: 72px;
+
     min-height: 100svh;
     display: flex;
     flex-direction: column;
-    font-family: 'Noto Sans', sans-serif;
+    font-family: 'Lora', Georgia, serif;
     color: #141b2c;
-    background-color: #faf8ff;
-    background-image:
-      radial-gradient(#dbc0c1 1px, transparent 1px),
-      radial-gradient(#dbc0c1 1px, transparent 1px);
-    background-size: 20px 20px;
-    background-position: 0 0, 10px 10px;
+    background-color: var(--casino-bg);
+    background-image: radial-gradient(#b8c4cf 1.25px, transparent 1.25px);
+    background-size: 10px 10px;
     width: 100%;
     box-sizing: border-box;
   }
 
-  /* ── Top header ── */
+  /* ── Shared deco helpers (Task 1) ── */
+  .deco-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+  .deco-label {
+    font-family: 'Cinzel', 'Playfair Display', serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+  }
+  .gold-line {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+
+  /* ── Top header (Task 2 — Bàn Thi Đấu) ── */
   .play-header {
-    background: #faf8ff;
-    border-bottom: 3px double #141b2c;
+    background: #ffffff;
+    border-bottom: 2px solid var(--gold);
     width: 100%;
     position: sticky; top: 0; z-index: 50;
+    box-shadow: 0 1px 3px rgba(17, 25, 39, 0.06);
   }
   .play-header-inner {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1rem 2rem;
+    gap: 1rem;
+    padding: 0.85rem 2rem;
     max-width: 1400px;
     margin: 0 auto;
   }
+  .play-header-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    flex: 1;
+    min-width: 0;
+  }
+  .play-title-flank {
+    height: 1px;
+    flex: 0 1 48px;
+    min-width: 12px;
+    background: linear-gradient(90deg, transparent, var(--gold));
+  }
+  .play-title-flank--r {
+    background: linear-gradient(90deg, var(--gold), transparent);
+  }
   .play-title {
-    font-family: 'Noto Serif', serif;
-    font-size: clamp(22px, 4vw, 40px);
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: #5c0c1c;
-    border-bottom: 4px double #887272;
-    padding-bottom: 2px;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: clamp(19px, 3.2vw, 32px);
+    font-weight: 900;
+    letter-spacing: 0.22em;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .play-title .deco-diamond { color: var(--gold-dark); }
+  .play-header-badge {
+    font-family: 'Cinzel', 'Playfair Display', serif;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.25em; text-transform: uppercase;
+    color: var(--gold-dark);
+    background: var(--gold-cream);
+    border: 1px solid rgba(202, 160, 72, 0.4);
+    padding: 0.35rem 0.75rem;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .play-header-live {
+    display: flex; align-items: center; gap: 0.4rem;
+    padding: 0.35rem 0.75rem;
+    background: var(--navy-900);
+    color: var(--gold-pale);
+    border: 1px solid var(--gold);
+    border-radius: 2px;
+    font-size: 12px; font-weight: 700;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+  }
+  .play-header-live .live-dot {
+    width: 8px; height: 8px;
+    border-radius: 9999px;
+    background: #10b981;
+    animation: pulse-dot 1.5s ease-in-out infinite;
+  }
+  @media (max-width: 640px) {
+    .play-header-inner { padding: 0.65rem 1rem; gap: 0.5rem; }
+    .play-title-flank { display: none; }
+  }
+  @media (max-width: 480px) {
+    .play-header-badge { display: none; }
   }
 
   /* ── Body layout ── */
@@ -98,37 +194,76 @@ const PLAY_STYLE = `
   }
 
   /* ── Sidebar ── */
+  /* ── Sidebar (Task 3 — Lượt Thi Đấu) ── */
   .play-sidebar {
     display: none;
     flex-direction: column;
     width: 280px;
     min-width: 280px;
-    border-right: 3px double #887272;
-    background: rgba(250,248,255,0.85);
+    border-right: 1px solid var(--paper-line);
+    background: rgba(252, 249, 242, 0.8);
     padding: 1.5rem;
     overflow-y: auto;
-    position: relative;
+    /* Cột LƯỢT THI ĐẤU dính ngay dưới header trong khi MÀN HÌNH THÀNH VIÊN ĐỘI
+       cuộn theo trang. align-self: flex-start là bắt buộc: mặc định flex item
+       bị kéo cao bằng cả .play-body nên không còn khoảng trống để dính.
+       max-height + overflow-y: auto để danh sách đội dài vẫn cuộn nội bộ.
+       Hai lần 3rem bị trừ:
+       • 3rem đầu = padding dọc (1.5rem × 2) vì .play-sidebar là content-box;
+       • 3rem sau = đệm dưới. Cuộn tới đáy trang thì .play-footer chiếm đáy
+         viewport (~40–45px) và sticky không được vượt khỏi đáy .play-body,
+         nên nếu không chừa chỗ thì cả cột bị đẩy trượt lên ~45px và chui
+         xuống dưới header. */
+    position: sticky;
+    top: var(--play-header-h);
+    align-self: flex-start;
+    max-height: calc(100svh - var(--play-header-h) - 6rem);
     z-index: 10;
   }
   @media (min-width: 1024px) { .play-sidebar { display: flex; } }
-  .sidebar-title {
-    font-family: 'Noto Serif', serif;
-    font-size: 16px; font-weight: 700;
-    letter-spacing: 0.08em; text-transform: uppercase;
-    color: #5c0c1c;
-    margin-bottom: 1.5rem;
-    border-bottom: 1px solid #887272;
+  .sidebar-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
     padding-bottom: 0.75rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid rgba(202, 160, 72, 0.4);
+  }
+  .sidebar-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+    font-family: 'Cinzel', 'Playfair Display', serif;
+    font-size: 12px; font-weight: 700;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink);
+  }
+  .sidebar-title .material-symbols-outlined {
+    font-size: 16px;
+    color: var(--gold-dark);
+  }
+  .sidebar-count {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--gold-dark);
+    background: rgba(247, 230, 164, 0.6);
+    border: 1px solid rgba(202, 160, 72, 0.5);
+    border-radius: 9999px;
+    padding: 1px 8px;
+    white-space: nowrap;
   }
   .sidebar-list {
-    display: flex; flex-direction: column; gap: 1.25rem;
+    display: flex; flex-direction: column; gap: 1rem;
     position: relative;
   }
   .sidebar-timeline-line {
     position: absolute;
-    left: 11px; top: 1rem; bottom: 1rem;
-    width: 1px;
-    border-left: 2px dashed #dbc0c1;
+    left: 11px; top: 0.75rem; bottom: 0.75rem;
+    width: 2px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, #dc2626, #2563eb, rgba(202, 160, 72, 0.3));
   }
   .sidebar-item {
     position: relative;
@@ -144,43 +279,72 @@ const PLAY_STYLE = `
   .sidebar-dot .dot-inner {
     width: 12px; height: 12px;
     border-radius: 9999px;
-    background: #887272;
+    background: var(--team-color, #887272);
     z-index: 1;
   }
   .sidebar-item.active .dot-inner {
-    background: #5c0c1c;
-    box-shadow: 0 0 0 4px #ffdadb;
+    border: 2px solid #ffffff;
+    box-shadow: 0 0 0 2px var(--team-color, var(--gold));
   }
   .sidebar-card {
-    border: 1px solid #887272;
-    background: #faf8ff;
-    padding: 0.75rem 1rem;
-    transition: background 0.15s;
+    border: 1px solid var(--paper-line);
+    background: #ffffff;
+    padding: 0.7rem 0.85rem;
+    border-radius: 2px;
+    transition: border-color 0.15s, background 0.15s;
     position: relative;
   }
+  .sidebar-item:not(.active) .sidebar-card:hover {
+    border-color: var(--gold);
+  }
   .sidebar-item.active .sidebar-card {
-    border: 2px solid #5c0c1c;
-    background: #f1f3ff;
-    transform: rotate(-1deg);
-    box-shadow: 4px 4px 0 0 rgba(92,12,28,0.15);
+    border: 2px solid var(--gold);
+    background: var(--maroon-900);
+    box-shadow: 2px 2px 0 0 rgba(72, 13, 20, 0.25);
   }
   .sidebar-team-name {
-    font-family: 'Noto Serif', serif;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: 'Lora', Georgia, serif;
     font-size: 13px; font-weight: 700;
+    letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--ink);
+  }
+  .sidebar-item.active .sidebar-team-name { color: #ffffff; }
+  .sidebar-you {
+    font-size: 9px; font-weight: 800;
     letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--red);
+    border: 1px dashed var(--red);
+    padding: 1px 4px;
+    border-radius: 1px;
+    transform: rotate(-3deg);
+    display: inline-block;
   }
-  .sidebar-item.active .sidebar-team-name { color: #5c0c1c; }
-  .sidebar-item:not(.active) .sidebar-team-name { color: #141b2c; }
+  .sidebar-item.active .sidebar-you {
+    color: var(--gold-pale);
+    border-color: var(--gold-pale);
+  }
   .sidebar-status {
-    font-size: 12px; font-weight: 500;
-    margin-top: 0.35rem;
+    font-size: 11px; font-weight: 600;
+    margin-top: 0.3rem;
     display: flex; align-items: center; gap: 0.35rem;
+    color: #7a6f63;
   }
-  .sidebar-status.live { color: #ba1a1a; font-weight: 700; }
-  .sidebar-status.waiting { color: #554243; }
+  .sidebar-item.active .sidebar-status { color: var(--gold-pale); }
+  .sidebar-status.live {
+    width: fit-content;
+    background: rgba(220, 38, 38, 0.85);
+    color: var(--gold-pale);
+    font-size: 10px; font-weight: 800;
+    letter-spacing: 0.08em;
+    padding: 2px 7px;
+    border-radius: 2px;
+  }
   .sidebar-status .dot-pulse {
-    width: 8px; height: 8px;
-    background: #ba1a1a;
+    width: 6px; height: 6px;
+    background: #ffffff;
     border-radius: 9999px;
     animation: pulse-dot 1.5s ease-in-out infinite;
   }
@@ -189,30 +353,61 @@ const PLAY_STYLE = `
     50% { opacity: 0.3; }
   }
 
-  /* ── Main content ── */
+  /* ── Main content (Task 4) ── */
   .play-main {
     flex: 1;
     padding: 2rem;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     min-width: 0;
   }
   @media (min-width: 768px) { .play-main { padding: 3rem; } }
 
-  /* ── Document card ── */
+  /* ── Document card (Task 4) ── */
   .play-doc {
+    --play-doc-pad: 2rem;
     width: 100%;
-    max-width: 900px;
+    max-width: 860px;
     background: #ffffff;
-    border: 1px solid #887272;
-    border-top: 6px solid #5c0c1c;
-    padding: 2rem;
+    border: 2px solid var(--gold);
+    border-radius: 2px;
+    padding: var(--play-doc-pad);
+    padding-top: 0;
     position: relative;
-    box-shadow: 1px 1px 0 0 rgba(136,114,114,0.5);
-    transform: rotate(-0.2deg);
+    overflow: hidden;
+    box-shadow:
+      0 6px 20px -12px rgba(17, 25, 39, 0.35),
+      2px 2px 0 0 rgba(202, 160, 72, 0.25);
   }
-  @media (min-width: 768px) { .play-doc { padding: 3rem; } }
+  @media (min-width: 768px) { .play-doc { --play-doc-pad: 3rem; } }
+  .play-doc-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: 0 calc(-1 * var(--play-doc-pad)) 2rem;
+    padding: 0.6rem var(--play-doc-pad);
+    background: linear-gradient(90deg, var(--navy-900), var(--navy-700), var(--navy-900));
+    border-bottom: 2px solid var(--gold);
+  }
+  .play-doc-head-title {
+    display: flex; align-items: center; gap: 0.4rem;
+    color: var(--gold-pale);
+    font-size: 11px; font-weight: 800;
+    letter-spacing: 0.25em; text-transform: uppercase;
+  }
+  .play-doc-head-round {
+    display: flex; align-items: center; gap: 0.4rem;
+    color: #cbd5e1;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .play-doc-head-round .dot-gold {
+    width: 6px; height: 6px;
+    border-radius: 9999px;
+    background: var(--gold);
+  }
 
   /* ── Team info bar ── */
   .team-info-bar {
@@ -326,7 +521,6 @@ const PLAY_STYLE = `
   }
   .result-banner.correct { border-color: #3F5D45; color: #3F5D45; background: #e8f5e9; }
   .result-banner.wrong   { border-color: #ba1a1a; color: #ba1a1a; background: #ffdad6; }
-  .result-banner.pending { border-color: #554243; color: #554243; background: #f1f3ff; }
 
   /* ── Footer ── */
   .play-footer {
@@ -394,6 +588,27 @@ export default function Play() {
   const [error, setError] = useState(() => (isSupabaseConfigured ? null : 'Supabase chưa được cấu hình.'))
   const [submittedRevision, setSubmittedRevision] = useState(null)
   const [submitError, setSubmitError] = useState(null)
+
+  // Chiều cao thật của .play-header (sticky; top: 0) → offset dính của cột
+  // LƯỢT THI ĐẤU. Đo bằng ResizeObserver thay vì hard-code vì chiều cao phụ
+  // thuộc font (header cao 73.3px với Lora/Cinzel đã load) và khổ màn hình.
+  // Deps phải có các state quyết định nhánh render: lần render đầu là màn
+  // "Đang kết nối…" (chưa có <header>), nên nếu chỉ chạy 1 lần với [] thì
+  // headerRef.current còn null và chiều cao mãi ở giá trị dự phòng.
+  const headerRef = useRef(null)
+  const [headerH, setHeaderH] = useState(72)
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return undefined
+    const measure = () => {
+      const h = Math.round(el.getBoundingClientRect().height * 10) / 10
+      setHeaderH((prev) => (prev === h ? prev : h))
+    }
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    measure()
+    return () => ro.disconnect()
+  }, [loading, error, teams.length])
 
   useEffect(() => {
     if (!session) navigate('/pick-team', { replace: true })
@@ -579,50 +794,58 @@ export default function Play() {
     <>
       <style>{PLAY_STYLE}</style>
 
-      <div className="play-page">
-        <header className="play-header">
+      <div className="play-page" style={{ '--play-header-h': `${headerH}px` }}>
+        <header className="play-header" ref={headerRef}>
           <div className="play-header-inner">
-            <div className="play-title">THỬ VẬN MAY</div>
+            <div className="play-header-badge">Bàn Thi Đấu</div>
+            <div className="play-header-center">
+              <span className="play-title-flank" />
+              <h1 className="play-title">
+                <span className="deco-diamond">♦</span>
+                THỬ VẬN MAY
+                <span className="deco-diamond">♦</span>
+              </h1>
+              <span className="play-title-flank play-title-flank--r" />
+            </div>
+            <div className="play-header-live">
+              <span className="live-dot" />
+              TRỰC TIẾP
+            </div>
           </div>
         </header>
 
         <div className="play-body">
           <aside className="play-sidebar">
-            <div className="sidebar-title">Lượt Thi Đấu</div>
+            <div className="sidebar-head">
+              <h2 className="sidebar-title">
+                <span className="material-symbols-outlined">format_list_numbered</span>
+                LƯỢT THI ĐẤU
+              </h2>
+              <span className="sidebar-count">{teams.length} ĐỘI</span>
+            </div>
             <div className="sidebar-list">
               <div className="sidebar-timeline-line" />
               {teams.map((team, i) => (
-                <div key={team.team_key} className={`sidebar-item${i === answeringIdx ? ' active' : ''}`}>
+                <div
+                  key={team.team_key}
+                  className={`sidebar-item${i === answeringIdx ? ' active' : ''}`}
+                  style={{ '--team-color': team.color }}
+                >
                   <div className="sidebar-dot">
-                    <div className="dot-inner" style={i === answeringIdx ? {} : { background: '#887272' }} />
+                    <div className="dot-inner" />
                   </div>
                   <div className="sidebar-card">
-                    <div className="sidebar-team-name" style={i === answeringIdx ? { color: team.color } : {}}>
+                    <div className="sidebar-team-name">
                       {team.name}
                       {team.team_key === session.teamKey && (
-                        <span
-                          style={{
-                            marginLeft: 6,
-                            fontSize: 11,
-                            fontWeight: 700,
-                            color: '#ba1a1a',
-                            letterSpacing: '0.05em',
-                            textTransform: 'uppercase',
-                            border: '1px dashed #ba1a1a',
-                            padding: '1px 4px',
-                            transform: 'rotate(-3deg)',
-                            display: 'inline-block',
-                          }}
-                        >
-                          bạn
-                        </span>
+                        <span className="sidebar-you">BẠN</span>
                       )}
                     </div>
                     <div className={`sidebar-status${i === answeringIdx ? ' live' : ' waiting'}`}>
                       {i === answeringIdx ? (
                         <>
                           <span className="dot-pulse" />
-                          {state.phase === 'answering' ? 'Đang trả lời...' : 'Vừa trả lời'}
+                          {state.phase === 'answering' ? 'ĐANG ĐẤU' : 'Vừa trả lời'}
                         </>
                       ) : (
                         'Chờ đến lượt'
@@ -636,6 +859,16 @@ export default function Play() {
 
           <main className="play-main">
             <div className="play-doc">
+              <div className="play-doc-head">
+                <div className="play-doc-head-title">
+                  <span>✦</span>
+                  MÀN HÌNH THÀNH VIÊN ĐỘI
+                </div>
+                <div className="play-doc-head-round">
+                  <span className="dot-gold" />
+                  VÒNG 1: THỬ THÁCH
+                </div>
+              </div>
               <div className="team-info-bar">
                 <div>
                   <div className="team-info-label">ĐỘI CỦA BẠN</div>
@@ -705,9 +938,6 @@ export default function Play() {
               )}
 
               {resultBanner && <div className={`result-banner ${resultBanner.type}`}>{resultBanner.text}</div>}
-              {activeCard && state.show_explain && (
-                <div className="result-banner pending">{activeCard.explain}</div>
-              )}
 
               <hr className="play-divider" />
 

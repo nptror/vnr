@@ -14,7 +14,7 @@ của sản phẩm. Mọi giá trị ở đây đều truy được về file ng
 | Mục | Giá trị |
 |-----|---------|
 | Tên sản phẩm | **THỬ VẬN MAY** |
-| Chủ đề | Trò chơi thuyết trình lịch sử Đảng — Đại hội VI (1986) → VIII (1996) → IX (2001) → 2006 |
+| Chủ đề | Trò chơi thuyết trình Chủ nghĩa xã hội khoa học — Gia đình Việt Nam trong thời kỳ quá độ lên chủ nghĩa xã hội |
 | Ngôn ngữ UI | Tiếng Việt, không dịch tự động |
 | Định dạng hình | Desktop-first (máy chiếu của Host) + mobile-first cho thiết bị từng đội |
 | Stack UI | React 19 + Vite, **không có UI framework / component library** — toàn bộ CSS viết tay |
@@ -38,8 +38,8 @@ con dấu, masthead và chân trang, không can thiệp lá bài và các hiệu
    `#faf8ff`); vùng nội dung là một "lá văn kiện" bo góc nhẹ, viền kép hoặc viền 1px,
    có bóng đổ lệch 1–4px. Không dùng card bo tròn + shadow mềm kiểu SaaS hiện đại.
 2. **Mực son đỏ là hành động chính.** Đỏ thẫm `#7A2430` (nền dày) và `#5c0c1c` (chữ
-   tiêu đề) chỉ dùng cho: nút chính, tiêu đề trang người chơi, dải màu nhóm câu hỏi
-   Lý luận, trạng thái lỗi. Dùng đỏ cho thông tin thường sẽ mất nghĩa.
+   tiêu đề) chỉ dùng cho: nút chính, tiêu đề trang người chơi, dải màu nhóm câu hỏi,
+   trạng thái lỗi. Dùng đỏ cho thông tin thường sẽ mất nghĩa.
 3. **Vàng kim là danh vọng.** Vàng chỉ dành cho: huy hiệu/điểm cao, lá hiệu ứng bốc
    được, xếp hạng nhất, confetti. Không dùng vàng cho nút thường.
 4. **Xanh rừng = đúng, đỏ lửa = sai.** Ngữ nghĩa điểm luôn gắn màu: cộng điểm/xanh
@@ -102,9 +102,9 @@ con dấu, masthead và chân trang, không can thiệp lá bài và các hiệu
 | Gold effect | `#c9a227` | `bonus_choice`, `flat_bonus`, confetti chủ đạo, mặt sau lá bài |
 | Gold pale | `#f4d47c` | Chữ `?` mặt lưng lá, sáng kim loại, confetti |
 | Gold đậm | `#7b5800` | Nhãn role "Người Chơi", cảnh báo "đã gửi", footer `/pick-team` |
-| Forest | `#3F5D45` | **Đúng** / cộng điểm / nhóm câu Vận dụng / nút bật nhạc nền |
+| Forest | `#3F5D45` | **Đúng** / cộng điểm / nút bật nhạc nền |
 | Forest light | `#5C7F62` | `--forest-light` Host |
-| Navy | `#1F4E66` | Nhóm câu Số liệu, đội Xanh |
+| Navy | `#1F4E66` | Đội Xanh |
 | Tím | `#4A3A6B` | Đội Tím, hiệu ứng `swap`, glyph `⇄` |
 | Nâu | `#8A4B08` | Hiệu ứng `steal`, số tiền cướp được |
 | Đỏ tối | `#9B2335` | Điểm giảm, `dice_subtract` |
@@ -134,16 +134,15 @@ mà quên bên kia sẽ lệch màu/tên giữa DB và UI).
 > Phòng N đội chỉ dùng N dòng đầu của bảng (`order` 0..N-1 trong `create_game`); 7 dòng luôn tồn
 > tại vì đây là toàn bộ metadata có sẵn — vượt 7 đòi hỏi thiết kế đội mới.
 
-**3 nhóm câu hỏi** — `game/catalog.js:213`
+**1 nhóm câu hỏi** — `game/catalog.js` (`CAT_NAME` / `CAT_COLOR` / `QUESTION_CAT`)
 
 | Mã | Tên | Hex | Số câu |
 |----|-----|-----|--------|
-| `L` | Lý luận | `#7A2430` | 8 |
-| `S` | Số liệu thống kê | `#1F4E66` | 8 |
-| `V` | Vận dụng hiện nay | `#3F5D45` | 7 |
+| `G` | Gia đình thời kỳ quá độ | `#7A2430` | 35 |
 
-Nhóm màu được dùng nhất quán ở 3 nơi: dải 6px trên đỉnh lá (`.ncard`, `.card`),
-chữ eyebrow (`.card-eyebrow`), chấm tròn trong `.legend`.
+Bộ câu hỏi không còn chia L / S / V và không có phần giải thích (mỗi câu chỉ có câu hỏi,
+4 đáp án A–D, đáp án đúng). Màu nhóm được dùng nhất quán ở 3 nơi: dải 6px trên đỉnh lá
+(`.ncard`, `.card`), chữ eyebrow (`.card-eyebrow`), chấm tròn trong `.legend`.
 
 **9 hiệu ứng** — `game/catalog.js:322-334`
 

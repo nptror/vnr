@@ -1,0 +1,239 @@
+/* ============================================================
+   ScoreFxArtDeco.css — Task 8: nâng palette ScoreFx
+   Giữ nguyên animation/structure, chỉ đổi màu/chrome
+   ============================================================ */
+
+/* Token khai trên .sf-overlay — các biến này trỏ tới token của Host
+   (--gold-primary, --deco-ink…) chỉ có trên .host-wrap. Khai ở :root thì var()
+   resolve ngay trên :root ⇒ invalid ⇒ popup mất viền/nền/màu chữ. */
+.sf-overlay {
+  --sf-border: var(--gold-primary);
+  --sf-bg: linear-gradient(135deg, #fdfbf7 0%, #f8f2e3 100%);
+  --sf-face-border: var(--gold-primary);
+  --sf-ink: var(--deco-ink);
+  --sf-muted: rgba(107, 100, 85, 0.7);
+  --sf-forest: var(--forest);
+  --sf-wrong: var(--wrong);
+  --sf-gold-dot: var(--gold-primary);
+  --sf-sway-color: var(--gold-dark);
+}
+
+.sf-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(12, 19, 34, 0.5);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  pointer-events: none;
+  animation: sf-fade 180ms ease-out;
+}
+@keyframes sf-fade { from { opacity: 0; } }
+
+.sf-stage {
+  display: flex;
+  align-items: stretch;
+  gap: 24px;
+  padding: 28px 32px;
+  background: var(--sf-bg);
+  border: 2.5px double var(--sf-border);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.5),
+    0 8px 24px rgba(0,0,0,0.15);
+  font-family: 'Be Vietnam Pro', sans-serif;
+}
+
+/* ── Thẻ đội ── */
+.sf-card {
+  position: relative;
+  width: 220px;
+  min-height: 128px;
+  border: 2px solid var(--sf-border);
+  border-radius: 10px;
+  background: var(--sf-bg);
+  box-shadow:
+    4px 4px 0 rgba(212, 175, 55, 0.18),
+    inset 0 0 0 1px rgba(255,255,255,0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 10px;
+}
+.sf-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+.sf-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(212, 175, 55, 0.4);
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.4);
+}
+.sf-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sf-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sf-score {
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--sf-ink);
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  transition: color 200ms;
+  font-family: 'Playfair Display', serif;
+}
+.sf-score small {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--sf-muted);
+  font-family: 'Be Vietnam Pro', sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.sf-score.up { color: var(--sf-forest); }
+.sf-score.down { color: var(--sf-wrong); }
+
+/* Điểm chốt: POP phóng to rồi về lại */
+.sf-score.sf-pop {
+  animation: sf-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes sf-pop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.55); filter: brightness(1.25); }
+  100% { transform: scale(1); }
+}
+
+/* Số điểm thay đổi bay lên rồi mờ dần */
+.sf-float {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 20px;
+  font-weight: 800;
+  opacity: 0;
+  font-family: 'Playfair Display', serif;
+  animation: sf-rise 1100ms ease-out 500ms forwards;
+}
+.sf-float.up { color: var(--sf-forest); }
+.sf-float.down { color: var(--sf-wrong); }
+@keyframes sf-rise {
+  0%   { opacity: 0; transform: translate(-50%, 10px); }
+  25%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -34px); }
+}
+
+/* ── SWAP: hai thẻ trượt xuyên nhau ── */
+.sf-card--a.sf-card--swap { animation: sf-fly-a 2200ms cubic-bezier(0.45, 0, 0.2, 1); }
+.sf-card--b.sf-card--swap { animation: sf-fly-b 2200ms cubic-bezier(0.45, 0, 0.2, 1); }
+@keyframes sf-fly-a {
+  0%   { transform: translateX(0) rotate(0deg); z-index: 1; }
+  18%  { z-index: 3; }
+  46%  { transform: translateX(calc(100% + 48px)) rotate(7deg) scale(1.05); z-index: 3; }
+  62%  { transform: translateX(calc(100% + 48px)) rotate(0deg) scale(1.02); z-index: 3; }
+  78%  { z-index: 3; }
+  82%  { transform: translateX(calc(100% + 52px)) rotate(0deg) scale(1); }
+  100% { transform: translateX(calc(100% + 48px)) rotate(0deg); z-index: 1; }
+}
+@keyframes sf-fly-b {
+  0%   { transform: translateX(0) rotate(0deg); }
+  46%  { transform: translateX(calc(-100% - 48px)) rotate(-7deg) scale(0.97); }
+  62%  { transform: translateX(calc(-100% - 48px)) rotate(0deg) scale(0.99); }
+  82%  { transform: translateX(calc(-100% - 52px)) rotate(0deg) scale(1); }
+  100% { transform: translateX(calc(-100% - 48px)) rotate(0deg); }
+}
+
+/* ── STEAL: đồng xu bay quỹ đạo cong ── */
+.sf-mid {
+  position: relative;
+  width: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+.sf-swap-glyph {
+  font-size: 48px;
+  font-weight: 800;
+  color: var(--sway-color);
+  line-height: 1;
+  font-family: 'Playfair Display', serif;
+}
+.sf-steal-glyph {
+  font-size: 36px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.sf-steal-amount {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--gold-dark);
+  font-family: 'Playfair Display', serif;
+}
+.sf-coins {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.sf-coin-track {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: sf-coin-x 720ms cubic-bezier(0.5, 0, 0.9, 0.4) both;
+  animation-delay: calc(250ms + var(--i) * 70ms);
+}
+@keyframes sf-coin-x {
+  from { transform: translate(28px, -50%); opacity: 1; }
+  to   { transform: translate(-128px, -50%); opacity: 1; }
+}
+.sf-coin {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 30%, #fcf6ba, #d4af37 65%, #8c671a);
+  border: 1.5px solid var(--gold-dark);
+  box-shadow:
+    0 2px 4px rgba(0,0,0,0.2),
+    inset 0 0 0 1px rgba(255,255,255,0.4);
+  animation:
+    sf-coin-y 720ms ease-in both,
+    sf-coin-spin 360ms linear infinite;
+  animation-delay: inherit;
+}
+@keyframes sf-coin-y {
+  0%   { transform: translateY(0); }
+  50%  { transform: translateY(-72px); }
+  100% { transform: translateY(0); }
+}
+@keyframes sf-coin-spin {
+  from { transform: rotate(0deg) scaleX(1); }
+  50%  { transform: rotate(180deg) scaleX(0.25); }
+  to   { transform: rotate(360deg) scaleX(1); }
+}
+
+/* Màn hình nhỏ (laptop thấp) thu toàn bộ stage lại */
+@media (max-width: 780px) {
+  .sf-stage { transform: scale(0.78); }
+}

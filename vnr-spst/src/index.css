@@ -77,7 +77,12 @@ html {
 
 body {
   margin: 0;
-  overflow-x: hidden;
+  /* `clip` chứ không phải `hidden`: `hidden` biến <body> thành một scroll
+     container (vì cặp hidden/visible bị đổi thành hidden/auto), mà hộp body
+     không bao giờ cuộn → mọi `position: sticky` bên trong mất tác dụng
+     (.play-header, .play-sidebar). `clip` cắt tràn ngang y hệt nhưng không
+     tạo scroll container, nên sticky vẫn bám theo viewport. */
+  overflow-x: clip;
 }
 
 #root {

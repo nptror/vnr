@@ -1,217 +1,368 @@
-export const QUESTIONS = {
-  L: [
-    {
-      q: "Đại hội đại biểu toàn quốc lần thứ VI của Đảng — khởi xướng đường lối Đổi mới — diễn ra vào tháng, năm nào?",
-      options: ["Tháng 12/1986", "Tháng 6/1996", "Tháng 4/2001", "Tháng 12/1991"],
-      correct: 0,
-      explain:
-        "Tháng 12/1986. Đây là đại hội mở đầu công cuộc đổi mới toàn diện đất nước, chuyển từ cơ chế kế hoạch hóa tập trung sang nền kinh tế nhiều thành phần vận hành theo cơ chế thị trường.",
-    },
-    {
-      q: "Đại hội VIII (6/1996) đưa ra nhận định quan trọng nào về chặng đường 10 năm đổi mới (1986–1996)?",
-      options: [
-        "Nước ta đã cơ bản trở thành nước công nghiệp theo hướng hiện đại",
-        "Nền kinh tế đã hội nhập hoàn toàn vào WTO",
-        "Nước ta đã ra khỏi khủng hoảng kinh tế – xã hội, tạo tiền đề chuyển sang đẩy mạnh công nghiệp hóa, hiện đại hóa",
-        "Đất nước đã hoàn thành công nghiệp hóa, hiện đại hóa",
-      ],
-      correct: 2,
-      explain:
-        "Nước ta đã ra khỏi khủng hoảng kinh tế – xã hội, các mục tiêu chủ yếu của chặng đường đầu thời kỳ quá độ đã cơ bản hoàn thành, tạo tiền đề chuyển sang thời kỳ đẩy mạnh công nghiệp hóa, hiện đại hóa.",
-    },
-    {
-      q: "Đại hội VIII xác định nhiệm vụ trung tâm của thời kỳ phát triển mới của đất nước là gì?",
-      options: [
-        "Phát triển kinh tế thị trường định hướng xã hội chủ nghĩa",
-        "Đẩy mạnh công nghiệp hóa, hiện đại hóa đất nước",
-        "Hội nhập kinh tế quốc tế toàn diện",
-        "Xây dựng nền kinh tế tri thức",
-      ],
-      correct: 1,
-      explain: "Đẩy mạnh công nghiệp hóa, hiện đại hóa đất nước là nhiệm vụ trung tâm được Đại hội VIII xác định.",
-    },
-    {
-      q: "Đại hội VIII đặt mục tiêu phấn đấu đến khoảng năm nào đưa nước ta cơ bản trở thành một nước công nghiệp?",
-      options: ["Năm 2000", "Năm 2010", "Năm 2020", "Năm 2030"],
-      correct: 2,
-      explain: "Năm 2020 — mục tiêu này được Đại hội VIII (1996) đặt ra.",
-    },
-    {
-      q: "Đại hội đại biểu toàn quốc lần thứ IX của Đảng diễn ra vào tháng, năm nào?",
-      options: ["Tháng 12/1996", "Tháng 4/2001", "Tháng 4/2006", "Tháng 1/2011"],
-      correct: 1,
-      explain: "Tháng 4/2001.",
-    },
-    {
-      q: "Đại hội IX chính thức đưa ra khái niệm gì để gọi tên mô hình kinh tế tổng quát của Việt Nam trong thời kỳ quá độ lên chủ nghĩa xã hội?",
-      options: [
-        "Kinh tế hàng hóa nhiều thành phần",
-        "Kinh tế kế hoạch hóa tập trung",
-        "Kinh tế thị trường tự do hoàn toàn",
-        "Kinh tế thị trường định hướng xã hội chủ nghĩa",
-      ],
-      correct: 3,
-      explain: "Kinh tế thị trường định hướng xã hội chủ nghĩa — khái niệm chính thức được Đại hội IX đưa ra.",
-    },
-    {
-      q: 'Theo Đại hội IX, "định hướng xã hội chủ nghĩa" của nền kinh tế thị trường Việt Nam thể hiện chủ yếu ở điều gì?',
-      options: [
-        "Ở việc xóa bỏ hoàn toàn kinh tế tư nhân",
-        "Ở mục tiêu phát triển (dân giàu, nước mạnh, công bằng, dân chủ, văn minh) và vai trò quản lý, điều tiết của Nhà nước",
-        "Ở việc nhà nước trực tiếp định giá toàn bộ hàng hóa",
-        "Ở việc chỉ phát triển kinh tế quốc doanh",
-      ],
-      correct: 1,
-      explain:
-        "Thể hiện ở mục tiêu phát triển (dân giàu, nước mạnh, xã hội công bằng, dân chủ, văn minh) và vai trò quản lý, điều tiết của Nhà nước theo định hướng đó — chứ không phải là xóa bỏ cơ chế thị trường.",
-    },
-    {
-      q: 'So với cách gọi trước Đại hội IX ("kinh tế hàng hóa nhiều thành phần vận hành theo cơ chế thị trường, có sự quản lý của Nhà nước, theo định hướng xã hội chủ nghĩa"), Đại hội IX đã làm gì với nhận thức lý luận này?',
-      options: [
-        "Giữ nguyên cách gọi cũ, không thay đổi",
-        "Bác bỏ hoàn toàn khái niệm kinh tế thị trường",
-        'Khái quát, rút gọn thành khái niệm chính thức, ngắn gọn hơn: "kinh tế thị trường định hướng xã hội chủ nghĩa"',
-        "Chuyển sang gọi là kinh tế kế hoạch hóa có điều tiết",
-      ],
-      correct: 2,
-      explain:
-        'Đại hội IX đã khái quát, rút gọn thành một khái niệm chính thức, ngắn gọn hơn — đánh dấu bước phát triển quan trọng trong tư duy lý luận của Đảng.',
-    },
-  ],
-  S: [
-    {
-      q: "Tốc độ tăng trưởng GDP bình quân của Việt Nam giai đoạn 1996–2000 là bao nhiêu %/năm?",
-      options: ["5%/năm", "7%/năm", "9%/năm", "4,4%/năm"],
-      correct: 1,
-      explain: "Khoảng 7%/năm (Tổng cục Thống kê).",
-    },
-    {
-      q: "Tốc độ tăng trưởng GDP bình quân giai đoạn 2001–2005 — thời kỳ thực hiện Nghị quyết Đại hội IX — là bao nhiêu?",
-      options: ["6%/năm", "7,5%/năm (riêng 2005 đạt khoảng 8,4%)", "9%/năm", "4,4%/năm"],
-      correct: 1,
-      explain: "Khoảng 7,5%/năm; riêng năm 2005 đạt khoảng 8,4%.",
-    },
-    {
-      q: "So với giai đoạn đầu đổi mới 1986–1990 (GDP bình quân tăng 4,4%/năm), tốc độ tăng trưởng giai đoạn 1996–2000 cao hơn khoảng bao nhiêu lần?",
-      options: ["1,2 lần", "1,6 lần", "2,5 lần", "3 lần"],
-      correct: 1,
-      explain: "Khoảng 1,6 lần.",
-    },
-    {
-      q: "Quy mô GDP của Việt Nam vào năm 1986 (khi bắt đầu Đổi mới) vào khoảng bao nhiêu?",
-      options: ["8 tỷ USD", "26 tỷ USD", "50 tỷ USD", "100 tỷ USD"],
-      correct: 0,
-      explain: "Khoảng 8 tỷ USD.",
-    },
-    {
-      q: "Cơ quan nào công bố số liệu thống kê chính thức (GDP, cơ cấu kinh tế, tỷ lệ hộ nghèo...) mà nhóm cần trích dẫn khi làm bài thuyết trình?",
-      options: ["Ngân hàng Nhà nước Việt Nam", "Bộ Kế hoạch và Đầu tư", "Tổng cục Thống kê (GSO)", "Ủy ban Kinh tế của Quốc hội"],
-      correct: 2,
-      explain: "Tổng cục Thống kê (GSO — gso.gov.vn).",
-    },
-    {
-      q: "Giai đoạn 2001–2005 diễn ra trong bối cảnh Việt Nam vẫn chịu dư âm của một sự kiện khu vực nào cuối những năm 1990?",
-      options: ["Khủng hoảng tài chính châu Á (1997–1998)", "Khủng hoảng dầu mỏ thế giới", "Chiến tranh vùng Vịnh", "Khủng hoảng tài chính toàn cầu 2008"],
-      correct: 0,
-      explain: "Cuộc khủng hoảng tài chính – kinh tế khu vực châu Á (1997–1998).",
-    },
-    {
-      q: "Ngay sau giai đoạn thực hiện Nghị quyết Đại hội IX (tức khoảng 2006–2010), Việt Nam chuyển từ nhóm nước thu nhập như thế nào sang nhóm nào?",
-      options: ["Từ trung bình sang cao", "Từ thấp sang trung bình (thấp)", "Từ nghèo sang thu nhập cao", "Không có sự thay đổi"],
-      correct: 1,
-      explain: "Từ nhóm nước thu nhập thấp sang nhóm nước có thu nhập trung bình (thấp).",
-    },
-    {
-      q: "Khi trình bày số liệu thống kê trong bài thuyết trình học thuật, nhóm cần lưu ý điều gì?",
-      options: [
-        "Chỉ cần nêu con số, không cần nêu nguồn",
-        "Trích nguồn rõ ràng: tên cơ quan, năm công bố, tài liệu gốc",
-        "Lấy số liệu từ mạng xã hội cho nhanh",
-        "Làm tròn số liệu tùy ý cho dễ nhớ",
-      ],
-      correct: 1,
-      explain: "Trích nguồn rõ ràng: tên cơ quan, năm công bố, đường dẫn/tài liệu gốc — tránh lấy số liệu từ nguồn không chính thống.",
-    },
-  ],
-  V: [
-    {
-      q: "Nghị quyết số 57-NQ/TW của Bộ Chính trị (2024) đặt trọng tâm vào lĩnh vực nào?",
-      options: [
-        "Cải cách hành chính công",
-        "Khoa học, công nghệ, đổi mới sáng tạo và chuyển đổi số quốc gia",
-        "Phát triển nông nghiệp công nghệ cao",
-        "Hội nhập văn hóa quốc tế",
-      ],
-      correct: 1,
-      explain:
-        "Nghị quyết 57 tập trung vào đột phá phát triển khoa học, công nghệ, đổi mới sáng tạo và chuyển đổi số quốc gia. Nhóm nên tự tra cứu thêm chỉ tiêu định lượng cập nhật (ví dụ tỷ trọng kinh tế số trong GDP) và nêu được nguồn.",
-    },
-    {
-      q: "Nghị quyết số 68-NQ/TW (2025) đặt mục tiêu gì cho khu vực kinh tế tư nhân?",
-      options: [
-        "Hạn chế vai trò của kinh tế tư nhân",
-        "Kinh tế tư nhân là một động lực quan trọng nhất của nền kinh tế quốc gia",
-        "Chuyển kinh tế tư nhân thành kinh tế quốc doanh",
-        "Chỉ khuyến khích phát triển doanh nghiệp nhà nước",
-      ],
-      correct: 1,
-      explain:
-        "Xác định kinh tế tư nhân là một động lực quan trọng nhất của nền kinh tế quốc gia. Nhóm nên tự đối chiếu số liệu/chỉ tiêu cụ thể (số lượng doanh nghiệp, tỷ trọng đóng góp GDP...) trong văn bản gốc.",
-    },
-    {
-      q: "Điểm giống nhau rõ nhất giữa cách đặt chỉ tiêu kinh tế – xã hội của Đại hội VIII, IX và cách đặt chỉ tiêu chuyển đổi số/kinh tế tư nhân hiện nay là gì?",
-      options: [
-        "Đều không có chỉ tiêu định lượng cụ thể",
-        "Đều có chỉ tiêu định lượng rõ ràng, gắn với mốc thời gian cụ thể",
-        "Đều chỉ tập trung vào lĩnh vực quốc phòng",
-        "Đều do một tổ chức quốc tế đặt ra",
-      ],
-      correct: 1,
-      explain:
-        "Cả hai đều có chỉ tiêu định lượng rõ ràng, chia theo mốc thời gian, gắn với bối cảnh phát triển đất nước; điểm khác có thể nằm ở lĩnh vực trọng tâm, tốc độ thực hiện, mức độ hội nhập quốc tế.",
-    },
-    {
-      q: "Theo tinh thần đặt mục tiêu của Đại hội VIII, IX, một mục tiêu (cá nhân hoặc tổ chức) tốt cần có đặc điểm gì?",
-      options: [
-        "Chung chung, không cần thời hạn",
-        "Cụ thể, đo lường được, có mốc thời gian rõ ràng",
-        "Chỉ cần có ý tưởng, không cần hành động cụ thể",
-        "Đặt càng nhiều mục tiêu càng tốt, không cần chọn lọc",
-      ],
-      correct: 1,
-      explain:
-        'Một mục tiêu tốt cần cụ thể, đo lường được và chia thành các "chặng" thực hiện có mốc thời gian — đúng tinh thần đặt mục tiêu của Đại hội VIII, IX.',
-    },
-    {
-      q: 'Vì sao "đặt mục tiêu có thể đo lường và kiên trì thực hiện theo từng chặng" lại là một bài học có giá trị, không chỉ với quốc gia mà cả với cá nhân?',
-      options: [
-        "Vì giúp đánh giá được tiến độ, điều chỉnh kịp thời và tạo động lực hoàn thành",
-        "Vì làm cho mục tiêu trở nên phức tạp, khó thực hiện hơn",
-        "Vì không cần theo dõi kết quả trong quá trình thực hiện",
-        "Vì bài học này chỉ có giá trị với tổ chức, không áp dụng được cho cá nhân",
-      ],
-      correct: 0,
-      explain:
-        "Đặt mục tiêu đo lường được và chia chặng giúp đánh giá tiến độ, điều chỉnh kịp thời và tạo động lực hoàn thành — áp dụng được cả ở cấp quốc gia lẫn cá nhân.",
-    },
-    {
-      q: "Nếu là người soạn thảo văn kiện Đại hội (giả định năm nay), chỉ tiêu nào sau đây phù hợp nhất với tinh thần công nghiệp hóa, hiện đại hóa gắn với chuyển đổi số?",
-      options: [
-        "Phát triển kinh tế số nhưng không cần đặt chỉ tiêu cụ thể",
-        "Tăng tỷ trọng kinh tế số trong GDP lên một mức cụ thể trong 5 năm tới",
-        "Giữ nguyên hiện trạng, không đặt thêm mục tiêu mới",
-        "Chỉ tập trung chỉ tiêu vào xuất khẩu nông sản",
-      ],
-      correct: 1,
-      explain:
-        "Một chỉ tiêu định lượng cụ thể, có mốc thời gian (ví dụ tỷ trọng kinh tế số trong GDP) mới đúng tinh thần đặt mục tiêu của các kỳ Đại hội. Khuyến khích nhóm đề xuất con số và giải thích tính khả thi.",
-    },
-  ],
-};
+// 35 câu hỏi chủ đề "Gia đình Việt Nam trong thời kỳ quá độ lên chủ nghĩa xã hội".
+// Một nhóm duy nhất (không còn chia L / S / V) và KHÔNG có phần giải thích: bộ
+// câu hỏi gốc chỉ có câu hỏi + 4 đáp án + đáp án đúng. Thứ tự phương án A–D
+// được giữ nguyên như bản gốc nên `correct` khớp đúng ký hiệu đáp án (A=0 … D=3).
+export const QUESTIONS = [
+  {
+    q: "Trong thời kỳ quá độ lên chủ nghĩa xã hội, gia đình Việt Nam được xem là hình thái gia đình nào trong bước chuyển biến xã hội?",
+    options: [
+      "Gia đình truyền thống mở rộng",
+      'Gia đình "quá độ" từ xã hội nông nghiệp cổ truyền sang xã hội công nghiệp hiện đại',
+      "Gia đình phụ quyền tuyệt đối",
+      "Gia đình hiện đại phương Tây",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Kiểu loại hình gia đình nào hiện đang trở nên rất phổ biến ở cả đô thị và nông thôn Việt Nam hiện nay?",
+    options: [
+      "Gia đình lớn ba, bốn thế hệ",
+      "Gia đình mẫu hệ tập trung",
+      "Gia đình đơn (gia đình hạt nhân)",
+      "Gia đình phức hợp đa thế hệ",
+    ],
+    correct: 2,
+  },
+  {
+    q: "Đặc điểm nổi bật nhất về quy mô của gia đình Việt Nam hiện đại so với gia đình truyền thống xưa là gì?",
+    options: [
+      "Quy mô ngày càng mở rộng, số thế hệ cùng chung sống tăng lên",
+      "Giữ nguyên mô hình ba đến bốn thế hệ sống chung dưới một mái nhà",
+      "Có xu hướng thu nhỏ hơn, phổ biến nhất chỉ có hai thế hệ (cha mẹ – con cái) cùng chung sống",
+      "Số lượng con cái trong mỗi gia đình gia tăng đáng kể",
+    ],
+    correct: 2,
+  },
+  {
+    q: "Theo giáo trình, việc quy mô gia đình ngày càng thu nhỏ lại đem đến tác động tích cực nào sau đây?",
+    options: [
+      "Giúp gia tăng số lượng lao động sản xuất nông nghiệp trong hộ gia đình",
+      "Đề cao sự bình đẳng nam - nữ, tôn trọng đời sống riêng tư và tránh được những mâu thuẫn của gia đình truyền thống",
+      "Tăng cường tuyệt đối quyền lực quyết định của người đàn ông trụ cột",
+      "Loại bỏ hoàn toàn khoảng cách thế hệ và áp lực việc làm hiện đại",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Quá trình biến đổi của gia đình hiện nay gây ra phản chức năng (mặt trái) nào đối với tình cảm giữa các thành viên?",
+    options: [
+      "Khiến các thành viên phụ thuộc hoàn toàn vào nhau về mặt tài chính",
+      "Làm mất đi hoàn toàn vai trò giáo dục của nhà trường đối với con cái",
+      "Tạo ra sự ngăn cách không gian, các thành viên ít quan tâm, giao tiếp khiến mối quan hệ trở nên rời rạc, lỏng lẻo",
+      "Buộc các gia đình phải quay lại lối sống tự cung tự cấp của xã hội cổ truyền",
+    ],
+    correct: 2,
+  },
+  {
+    q: "Yếu tố nào sau đây không được nhắc đến là nguyên nhân trực tiếp tác động làm biến đổi hôn nhân và gia đình Việt Nam?",
+    options: [
+      "Cơ chế thị trường",
+      "Khoa học công nghệ hiện đại",
+      "Toàn cầu hóa",
+      "Khủng hoảng môi trường tự nhiên",
+    ],
+    correct: 3,
+  },
+  {
+    q: "Dưới tác động của đời sống hiện đại, mối quan hệ vợ chồng - gia đình đang có biểu hiện tiêu cực nào?",
+    options: [
+      "Gắn kết chặt chẽ hơn trước",
+      "Trở nên lỏng lẻo",
+      "Hoàn toàn phụ thuộc vào gia tộc lớn",
+      "Mất đi hoàn toàn chức năng sinh sản",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Hiện tượng nào sau đây phản ánh mặt trái trong quan hệ hôn nhân hiện nay?",
+    options: [
+      "Tỷ lệ kết hôn đúng độ tuổi tăng cao",
+      "Tỷ lệ ly hôn, ly thân và ngoại tình gia tăng",
+      "Mô hình gia đình nhiều thế hệ trở nên phổ biến",
+      "Vai trò làm chủ gia đình chỉ do người vợ đảm nhiệm",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Xu hướng nào sau đây xuất hiện trong đời sống gia đình hiện đại được nêu trong sách?",
+    options: [
+      "Cấm đoán hoàn toàn việc sống chung trước hôn nhân",
+      "Quan hệ tình dục trước hôn nhân, ngoài hôn nhân và chung sống không kết hôn",
+      "Chỉ tồn tại duy nhất mô hình gia đình truyền thống",
+      "Bắt buộc kết hôn theo sự sắp đặt của cha mẹ",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Vấn đề xã hội tiêu cực nào đối với người cao tuổi xuất hiện trong bối cảnh gia đình hiện nay?",
+    options: [
+      "Người già nắm toàn bộ quyền lực gia đình",
+      "Người già sống cô đơn",
+      "Người già bị ép buộc tham gia thị trường lao động",
+      "Người già trở thành chủ thể kinh tế duy nhất",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Biểu hiện tiêu cực nào ở trẻ em được nhắc đến do tác động của những biến đổi gia đình?",
+    options: [
+      "Trẻ em sống ích kỷ",
+      "Trẻ em độc lập tài chính quá sớm",
+      "Trẻ em không tham gia học tập",
+      "Trẻ em chỉ gắn bó với gia đình lớn",
+    ],
+    correct: 0,
+  },
+  {
+    q: "Hệ lụy của những biến đổi tiêu cực đối với gia đình truyền thống là gì?",
+    options: [
+      "Giá trị truyền thống trong gia đình bị coi nhẹ, gia đình truyền thống bị phá vỡ, lung lay",
+      "Gia đình truyền thống được củng cố vững chắc hơn",
+      "Các phong tục cổ truyền được khôi phục nguyên vẹn",
+      "Tỷ lệ gia đình đa thế hệ tăng nhanh chóng",
+    ],
+    correct: 0,
+  },
+  {
+    q: "Mô hình hộ gia đình nào sau đây có xu hướng gia tăng trong xã hội Việt Nam hiện nay?",
+    options: [
+      "Hộ gia đình phong kiến",
+      "Hộ gia đình đơn thân, độc thân",
+      "Hộ gia đình mẫu hệ cổ truyền",
+      "Hộ gia đình bộ tộc",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Hiện tượng hôn nhân mới nào được ghi nhận gia tăng trong xã hội hiện đại?",
+    options: [
+      "Tảo hôn theo tập tục cũ",
+      "Kết hôn đồng tính",
+      "Đa thê hợp pháp",
+      "Hôn nhân sắp đặt dòng họ",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Sức ép nào từ cuộc sống hiện đại khiến hôn nhân trở nên khó khăn với nhiều người?",
+    options: [
+      "Công việc căng thẳng, không ổn định, di chuyển nhiều",
+      "Thiếu các phương tiện khoa học công nghệ",
+      "Nền kinh tế khép kín tự cung tự cấp",
+      "Sự can thiệp quá mức của cộng đồng làng xã",
+    ],
+    correct: 0,
+  },
+  {
+    q: "Trong gia đình truyền thống, vị trí và quyền lực của người chồng được thể hiện như thế nào?",
+    options: [
+      "Bình đẳng tuyệt đối và chia sẻ mọi quyền lực với người vợ",
+      "Là trụ cột, nắm giữ mọi quyền lực và quyết định các việc quan trọng",
+      "Người chồng chỉ quản lý chi tiêu nội trợ",
+      "Người chồng không có quyền sở hữu tài sản",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Hiện nay, bên cạnh mô hình người chồng làm chủ, gia đình Việt Nam còn tồn tại ít nhất những mô hình nào khác?",
+    options: [
+      "Mô hình cha mẹ vợ làm chủ và anh em làm chủ",
+      "Mô hình người vợ làm chủ và mô hình cả hai vợ chồng cùng làm chủ",
+      "Mô hình con cái làm chủ và người giúp việc làm chủ",
+      "Mô hình dòng họ làm chủ tập thể",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Theo quan niệm hiện nay, người chủ gia đình là người có những đặc điểm nào?",
+    options: [
+      "Là người lớn tuổi nhất trong dòng họ",
+      "Người có phẩm chất, năng lực và đóng góp vượt trội, được các thành viên coi trọng",
+      "Mặc định luôn là người đàn ông lớn tuổi nhất nhà",
+      "Người sở hữu đất đai tổ tiên để lại",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Trong bối cảnh kinh tế thị trường và hội nhập kinh tế, yếu tố nào đã trở thành đòi hỏi mới về phẩm chất của người lãnh đạo gia đình?",
+    options: [
+      "Khả năng làm việc nông nghiệp giỏi",
+      "Là người kiếm ra nhiều tiền",
+      "Khả năng duy trì các nghi lễ truyền thống",
+      "Nắm giữ chức vụ hành chính xã hội cao",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Tác động của vòng xoáy đồng tiền và vị thế xã hội trong thời kỳ mới đối với gia đình là gì?",
+    options: [
+      "Làm gắn kết các thế hệ sâu sắc hơn trước",
+      "Vô tình đánh mất đi tình cảm gia đình, các thành viên ít quan tâm và ít giao tiếp với nhau",
+      "Xóa bỏ hoàn toàn tình trạng bạo lực gia đình",
+      "Giúp các thành viên dành nhiều thời gian cho nhau hơn",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Hiện tượng nào sau đây liên quan đến con cái được nhắc đến như một biểu hiện của sự biến đổi gia đình hiện nay?",
+    options: [
+      "Sinh nhiều con để nối dõi tông đường",
+      "Sinh con ngoài giá thú",
+      "Con cái không được phép rời khỏi nhà cha mẹ",
+      "Con cái bắt buộc phải kết hôn sớm",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Những mặt trái và bi kịch gia đình xuất hiện trong xã hội hiện nay gồm có hiện tượng nào sau đây?",
+    options: [
+      "Tình trạng bạo hành trong gia đình, xâm hại tình dục",
+      "Sự gia tăng các nghi lễ gia tộc truyền thống",
+      "Sự can thiệp quá mức của hàng xóm láng giềng",
+      "Trẻ em phải gánh vác kinh tế thay cha mẹ",
+    ],
+    correct: 0,
+  },
+  {
+    q: "Trong gia đình truyền thống, ai là người đóng vai trò chủ sở hữu tài sản của gia đình?",
+    options: [
+      "Người vợ",
+      "Người con trưởng trong nhà",
+      "Người chồng (người đàn ông)",
+      "Cả hai vợ chồng cùng đứng tên",
+    ],
+    correct: 2,
+  },
+  {
+    q: "Yếu tố nào sau đây quyết định vị trí người chủ gia đình trong xã hội truyền thống trước đây?",
+    options: [
+      "Năng lực chuyên môn và trình độ học vấn",
+      "Giới tính nam và quyền lực gia trưởng của người đàn ông",
+      "Đóng góp kinh tế vượt trội của mỗi cá nhân",
+      "Sự đồng thuận và biểu quyết bình đẳng giữa các thành viên",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Điều gì chứng minh cho việc tiêu chuẩn người chủ gia đình hiện nay có tính dân chủ và cởi mở hơn so với trước kia?",
+    options: [
+      "Người chủ gia đình là người có phẩm chất, năng lực và đóng góp vượt trội được cả nhà coi trọng",
+      "Người chủ gia đình mặc định là người nhiều tuổi nhất",
+      "Người chủ gia đình bắt buộc phải là nam giới",
+      "Người chủ gia đình do chính quyền địa phương chỉ định",
+    ],
+    correct: 0,
+  },
+  {
+    q: "Hiện tượng nào sau đây phản ánh xu hướng quan hệ hôn nhân mới mẻ nhưng đi kèm nhiều hệ lụy xã hội được nêu trong mục 3?",
+    options: [
+      "Kết hôn có sự bảo lãnh của dòng tộc",
+      "Chung sống không kết hôn và gia tăng số hộ đơn thân, độc thân",
+      "Bắt buộc tam đại đồng đường cùng sinh sống",
+      "Cha mẹ giữ toàn quyền định đoạt hôn nhân của con cái",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Sự xuất hiện của mô hình cả hai vợ chồng cùng làm chủ gia đình thể hiện sự biến đổi theo hướng nào?",
+    options: [
+      "Phá vỡ hoàn toàn mọi trật tự gia đình",
+      "Đề cao sự bình đẳng, tiến bộ và chia sẻ trách nhiệm giữa nam và nữ",
+      "Làm giảm đi trách nhiệm của cha mẹ đối với con cái",
+      "Xóa bỏ hoàn toàn mô hình người đàn ông làm chủ gia đình",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Nội dung nào sau đây là phương hướng cơ bản thứ nhất trong xây dựng và phát triển gia đình Việt Nam thời kỳ quá độ?",
+    options: [
+      "Tăng cường sự lãnh đạo của Đảng, nâng cao nhận thức của xã hội về xây dựng và phát triển gia đình Việt Nam",
+      "Đẩy mạnh công nghiệp hóa toàn bộ hoạt động kinh tế gia đình",
+      "Thay thế hoàn toàn nếp sống truyền thống bằng lối sống hiện đại",
+      "Triệt để xóa bỏ mô hình kinh tế hộ gia đình",
+    ],
+    correct: 0,
+  },
+  {
+    q: "Cấp ủy và chính quyền các cấp cần đưa nội dung, mục tiêu của công tác xây dựng và phát triển gia đình vào đâu?",
+    options: [
+      "Kế hoạch tài chính dài hạn của các ngân hàng thương mại",
+      "Chiến lược phát triển kinh tế - xã hội và chương trình kế hoạch công tác hằng năm của các bộ, ngành, địa phương",
+      "Các quy ước riêng của từng dòng họ",
+      "Điều lệ của các hội doanh nghiệp tư nhân",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Đối tượng gia đình nào sau đây được ưu tiên hỗ trợ chính sách phát triển kinh tế gia đình?",
+    options: [
+      "Gia đình doanh nhân thành đạt ở thành thị",
+      "Gia đình liệt sĩ, thương binh, bệnh binh, gia đình các dân tộc ít người, gia đình nghèo, vùng sâu, vùng xa, vùng khó khăn",
+      "Gia đình sở hữu nhiều trang trại quy mô lớn",
+      "Gia đình chỉ có một thế hệ sinh sống",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Một trong những biện pháp cụ thể nhằm đẩy mạnh phát triển kinh tế hộ gia đình là gì?",
+    options: [
+      "Cấm các hộ gia đình tự do tham gia xuất khẩu",
+      "Tạo điều kiện thuận lợi cho các hộ gia đình vay vốn ngắn hạn và dài hạn nhằm xóa đói giảm nghèo, chuyển dịch cơ cấu sản xuất",
+      "Thu hồi vốn vay đối với các mô hình kinh tế trang trại",
+      "Hạn chế sử dụng nguyên liệu sẵn có tại chỗ",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Phương hướng thứ ba trong xây dựng gia đình Việt Nam hiện nay đặt ra yêu cầu gì đối với các giá trị gia đình?",
+    options: [
+      "Phủ nhận hoàn toàn các yếu tố của gia đình truyền thống",
+      "Kế thừa những giá trị của gia đình truyền thống, đồng thời tiếp thu những tiến bộ của nhân loại về gia đình",
+      "Giữ nguyên toàn bộ các phong tục, hủ tục cổ truyền không thay đổi",
+      "Sao chép nguyên mẫu mô hình gia đình phương Tây hiện đại",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Phong trào xây dựng gia đình văn hóa bắt đầu được hình thành từ thời gian và địa phương nào?",
+    options: [
+      "Những năm 50 của thế kỷ XX tại Hà Nội",
+      "Những năm 60 của thế kỷ XX tại một địa phương của tỉnh Hưng Yên",
+      "Những năm 80 của thế kỷ XX tại Hải Phòng",
+      "Sau năm 1975 tại Thành phố Hồ Chí Minh",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Tiêu chuẩn cơ bản mà mô hình gia đình văn hóa hướng đến bao gồm những nội dung nào?",
+    options: [
+      "Gia đình giàu có về tài sản, không tham gia nghĩa vụ công dân",
+      "Gia đình ấm no, hòa thuận, tiến bộ, khỏe mạnh và hạnh phúc; thực hiện tốt nghĩa vụ công dân và kế hoạch hóa gia đình; đoàn kết tương trợ trong cộng đồng",
+      "Gia đình sở hữu cơ sở sản xuất kinh doanh lớn và sống khép kín",
+      "Gia đình chỉ cần duy trì nề nếp gia phong truyền thống mà không cần tiếp thu cái mới",
+    ],
+    correct: 1,
+  },
+  {
+    q: "Để nâng cao chất lượng phong trào xây dựng gia đình văn hóa, cần kiên quyết tránh xu hướng tiêu cực nào?",
+    options: [
+      "Công khai hóa các tiêu chí bình xét",
+      "Chạy theo thành tích, phản ánh không thực chất phong trào và chất lượng gia đình văn hóa",
+      "Áp dụng nguyên tắc dân chủ, công bằng trong bình xét",
+      "Lắng nghe tâm tư, nguyện vọng của quần chúng nhân dân",
+    ],
+    correct: 1,
+  },
+];
 
-export const CAT_NAME = { L: "Lý luận", S: "Số liệu thống kê", V: "Vận dụng hiện nay" };
-export const CAT_COLOR = { L: "#7A2430", S: "#1F4E66", V: "#3F5D45" };
-export const TOTAL_CARDS = 35;
+// Bộ câu hỏi giờ chỉ có MỘT nhóm duy nhất (chủ đề gia đình trong thời kỳ quá độ)
+// nên tên/màu nhóm rút về một entry: Host hiển thị đúng 1 chip và mọi lá bài
+// dùng chung màu nhận diện này. QUESTION_CAT là giá trị gán cho card.cat.
+export const QUESTION_CAT = "G";
+export const CAT_NAME = { G: "Gia đình thời kỳ quá độ" };
+export const CAT_COLOR = { G: "#7A2430" };
+// Số lá = số câu: mỗi câu xuất hiện đúng MỘT lần trong ván (xem createShuffledCardDeck).
+export const TOTAL_CARDS = QUESTIONS.length;
 
 // Nguồn metadata đội duy nhất của phía JS: /pick-team dùng icon/desc/rotate,
 // /pin dùng preview tên đội, DEFAULT_TEAMS (dưới) dùng tên/màu cho hàng teams
@@ -311,29 +462,17 @@ export function shuffle(arr) {
   return a;
 }
 
+// Bộ bài = đúng 35 lá, mỗi câu xuất hiện đúng MỘT lần. Trước đây pool được nhân
+// đôi rồi cắt còn 35 lá nên cùng một câu có thể lặp trong một ván; giờ số câu
+// (QUESTIONS.length) đã bằng số lá nên chỉ cần xáo một lần.
 export function createShuffledCardDeck() {
-  let pool = [];
-  ["L", "S", "V"].forEach((cat) => {
-    QUESTIONS[cat].forEach((item, index) =>
-      pool.push({
-        id: `${cat}-${index + 1}`,
-        cat,
-        q: item.q,
-        options: item.options,
-        correct: item.correct,
-        explain: item.explain,
-      })
-    );
-  });
-  const combined = shuffle(pool).concat(shuffle(pool));
-  return combined.slice(0, TOTAL_CARDS).map((item, i) => ({
-    num: i + 1,
-    id: item.id,
-    cat: item.cat,
+  return shuffle(QUESTIONS).map((item, index) => ({
+    num: index + 1,
+    id: `G-${index + 1}`,
+    cat: QUESTION_CAT,
     q: item.q,
     options: item.options,
     correct: item.correct,
-    explain: item.explain,
     used: false,
   }));
 }

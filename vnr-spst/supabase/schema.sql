@@ -108,6 +108,8 @@ CREATE TABLE IF NOT EXISTS game_state (
   attempt_label       TEXT NOT NULL DEFAULT '',
 
   -- Giải thích
+  -- Không còn được app ghi/đọc (bộ câu hỏi đã bỏ phần giải thích). Giữ cột lại
+  -- để DB cũ và DB tạo mới từ file này có cùng cấu trúc.
   show_explain        BOOLEAN NOT NULL DEFAULT false,
 
   -- Hiệu ứng bài may mắn

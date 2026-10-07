@@ -122,7 +122,6 @@ export function closeCard(state, teams) {
     option_states: [],
     attempt_label: "",
     deadline_at: null,
-    show_explain: false,
     show_effect: false,
     effect_type: null,
     effect_icon: null,

@@ -108,18 +108,21 @@ export default function PickTeam() {
           display: flex;
           flex-direction: column;
           font-family: 'Noto Sans', sans-serif;
-          color: #141b2c;
-          background-color: #f4f1ea;
+          color: #1c1c18;
+          background-color: #F7F3E9;
           width: 100%;
           box-sizing: border-box;
         }
         .pt-nav {
-          background: #faf8ff;
-          border-bottom: 3px double #887272;
+          background: #faf6ee;
+          border-bottom: 3px double #caa048;
           width: 100%;
           position: sticky;
           top: 0;
           z-index: 50;
+          backdrop-filter: blur(6px);
+          -webkit-backdrop-filter: blur(6px);
+          box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset, 0 2px 6px rgba(28,28,24,0.04);
         }
         .pt-nav-inner {
           display: flex;
@@ -133,8 +136,8 @@ export default function PickTeam() {
           font-family: 'Noto Serif', serif;
           font-size: 24px;
           font-weight: 700;
-          letter-spacing: 0.01em;
-          color: #5c0c1c;
+          letter-spacing: 0.08em;
+          color: #775a00;
           text-transform: uppercase;
         }
         .pt-main {
@@ -154,16 +157,17 @@ export default function PickTeam() {
         .pt-header h1 {
           font-family: 'Noto Serif', serif;
           font-size: clamp(28px, 5vw, 48px);
-          line-height: 1.15; letter-spacing: -0.02em; font-weight: 700;
-          color: #5c0c1c;
+          line-height: 1.15; letter-spacing: 0.04em; font-weight: 700;
+          color: #775a00;
           margin: 0 0 1rem;
           display: inline-block;
-          border-bottom: 2px solid #dbc0c1;
+          border-bottom: 2px solid #caa048;
           padding-bottom: 1rem;
+          text-shadow: 0 1px 0 rgba(255,255,255,0.4);
         }
         .pt-header p {
           font-size: 18px; line-height: 28px;
-          color: #554243; font-style: italic;
+          color: #775a00; font-style: italic;
         }
         .pt-pin-row {
           display: flex; gap: 0.75rem; align-items: center; justify-content: center;
@@ -171,34 +175,48 @@ export default function PickTeam() {
         }
         .pt-pin-row label {
           font-family: 'Noto Serif', serif; font-weight: 700;
-          font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
-          color: #554243;
+          font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase;
+          color: #775a00;
         }
         .pt-pin-row input {
-          border: 1px solid #887272; padding: 0.6rem 1rem; font-size: 16px;
-          background: #fff; min-width: 140px;
-          color: #141b2c; -webkit-text-fill-color: #141b2c;
+          border: 1px solid #807664; padding: 0.6rem 1rem; font-size: 16px;
+          background: #ffffff; min-width: 140px;
+          color: #1c1c18; -webkit-text-fill-color: #1c1c18;
+          letter-spacing: 0.08em;
+          box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset, 0 1px 3px rgba(28,28,24,0.06);
         }
         .pt-grid {
           display: grid;
           grid-template-columns: repeat(1, 1fr);
-          gap: 2rem;
-          max-width: 1200px;
+          gap: 1rem;
+          max-width: 1280px;
           width: 100%;
         }
         @media (min-width: 640px)  { .pt-grid { grid-template-columns: repeat(2, 1fr); } }
-        @media (min-width: 1024px) { .pt-grid { grid-template-columns: repeat(4, 1fr); } }
+        @media (min-width: 900px)  { .pt-grid { grid-template-columns: repeat(4, 1fr); } }
+        @media (min-width: 1280px) { .pt-grid { grid-template-columns: repeat(7, 1fr); } }
         .pt-card {
-          background: #ffffff;
-          border: 1px solid #887272;
+          background: #fcf9f2;
+          border: 1px solid #d1c5b0;
           border-top-width: 8px;
-          padding: 1.5rem;
+          padding: 1rem;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: space-between;
-          min-height: 260px;
+          min-height: auto;
           box-sizing: border-box;
+          box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 4px 12px rgba(28,25,23,0.05);
+          transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+        }
+        .pt-card-taken:hover {
+          border-color: #d1c5b0;
+          box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 4px 12px rgba(28,25,23,0.05);
+          transform: none !important;
+          cursor: not-allowed;
+        }
+        .pt-card-taken {
+          cursor: not-allowed;
         }
         .pt-card-body { text-align: center; width: 100%; }
         .pt-card-icon {
@@ -206,19 +224,27 @@ export default function PickTeam() {
           margin-bottom: 1rem;
           display: block;
           font-variation-settings: 'FILL' 1;
+          transition: transform 0.15s ease;
+        }
+        .pt-card:hover .pt-card-icon {
+          transform: scale(1.03);
+        }
+        .pt-card-taken .pt-card-icon {
+          opacity: 0.6;
         }
         .pt-card-name {
           font-family: 'Noto Serif', serif;
           font-size: 22px; line-height: 30px; font-weight: 600;
-          color: #141b2c;
+          color: #1c1c18;
           margin: 0 0 0.75rem;
+          letter-spacing: 0.02em;
         }
         .pt-card-divider {
-          height: 1px; background: #dbc0c1;
+          height: 1px; background: #d1c5b0;
           margin: 0 0 1rem; border: none;
         }
         .pt-card-desc {
-          font-size: 14px; line-height: 20px; color: #554243;
+          font-size: 14px; line-height: 20px; color: #775a00;
           margin-bottom: 1.5rem;
         }
         .pt-join-btn {
@@ -230,49 +256,85 @@ export default function PickTeam() {
           border: 2px solid;
           cursor: pointer;
           color: #fff;
+          transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+          border-width: 2px;
+        }
+        .pt-join-btn:hover:not(:disabled) {
+          background: #1f293d !important;
+          border-color: #1f293d !important;
+        }
+        .pt-join-btn:active:not(:disabled) {
+          transform: translateY(1px);
+        }
+        .pt-join-btn.border-width-2 {
+          border-width: 2px;
         }
         .pt-modal-backdrop {
-          position: fixed; inset: 0; background: rgba(20,16,10,0.55);
+          position: fixed; inset: 0; background: rgba(20,16,10,0.45);
           display: flex; align-items: center; justify-content: center; z-index: 80;
           padding: 20px;
+          backdrop-filter: blur(2px);
+          -webkit-backdrop-filter: blur(2px);
         }
         .pt-modal {
-          background: #fdfbf7; border: 3px double #141b2c; padding: 2rem;
+          background: #fdfbf7; border: 3px double #d1c5b0; padding: 2rem;
           max-width: 380px; width: 100%;
+          box-shadow: 0 8px 28px rgba(28,25,23,0.12);
         }
         .pt-modal h3 {
           font-family: 'Noto Serif', serif; font-size: 18px; margin: 0 0 1rem;
+          color: #1c1c18;
         }
         .pt-modal label {
-          display: block; font-size: 12px; font-weight: 700; letter-spacing: 0.06em;
-          text-transform: uppercase; color: #554243; margin-bottom: 4px; margin-top: 12px;
+          display: block; font-size: 12px; font-weight: 700; letter-spacing: 0.08em;
+          text-transform: uppercase; color: #775a00; margin-bottom: 4px; margin-top: 12px;
         }
         .pt-modal input {
-          width: 100%; box-sizing: border-box; border: 1px solid #887272;
+          width: 100%; box-sizing: border-box; border: 1px solid #d1c5b0;
           padding: 0.6rem 0.75rem; font-size: 16px;
-          color: #141b2c; -webkit-text-fill-color: #141b2c; background: #fff;
+          color: #1c1c18; -webkit-text-fill-color: #1c1c18; background: #fff;
+          box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset;
+          transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .pt-modal input:focus {
+          outline: 2px solid #807664;
+          outline-offset: 2px;
+          border-color: #807664;
+          box-shadow: 0 0 0 3px rgba(212,175,55,0.18);
+        }
+        .pt-modal input::placeholder {
+          color: #a39a85;
         }
         .pt-modal-actions { display: flex; gap: 0.5rem; margin-top: 1.5rem; }
         .pt-modal-actions button {
           flex: 1; padding: 0.6rem; font-family: 'Noto Serif', serif;
-          font-weight: 700; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase;
-          border: 1px solid #887272; cursor: pointer; background: #fff;
+          font-weight: 700; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
+          border: 1px solid #d1c5b0; cursor: pointer; background: #fff;
+          color: #1c1c18;
+          transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+        }
+        .pt-modal-actions button:hover {
+          border-color: #807664;
+          background: #fcf9f2;
+          box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset;
         }
         .pt-modal-actions button.primary { background: #7a2430; color: #fff; border-color: #7a2430; }
-        .pt-modal-error { color: #ba1a1a; font-size: 13px; margin-top: 0.75rem; }
+        .pt-modal-actions button.primary:hover { background: #5a1a22 !important; border-color: #5a1a22 !important; }
+        .pt-modal-error { color: #b4423a; font-size: 13px; margin-top: 0.75rem; }
         .pt-footer {
-          background: #faf8ff;
-          border-top: 0.5pt solid #887272;
+          background: #faf6ee;
+          border-top: 0.5pt solid #d1c5b0;
           width: 100%;
           padding: 1.5rem 2rem;
           text-align: center;
           margin-top: auto;
+          box-shadow: 0 -1px 0 rgba(255,255,255,0.5) inset;
         }
         .pt-footer-copy {
           font-family: 'Noto Serif', serif;
           font-size: 13px; font-weight: 700;
-          letter-spacing: 0.1em; text-transform: uppercase;
-          color: #7b5800;
+          letter-spacing: 0.12em; text-transform: uppercase;
+          color: #775a00;
         }
       `}</style>
 
@@ -295,7 +357,7 @@ export default function PickTeam() {
                         <div
                             style={{
                                 marginBottom: 24, textAlign: 'center', padding: '1rem 1.5rem',
-                                border: '2px solid #7a2430', background: '#fdfbf7', maxWidth: 480,
+                                border: '1px solid #d1c5b0', background: '#faf6ee', maxWidth: 480,
                             }}
                         >
                             <p style={{ margin: '0 0 0.75rem', fontSize: 15 }}>
@@ -306,7 +368,7 @@ export default function PickTeam() {
                             <button
                                 type="button"
                                 className="pt-join-btn"
-                                style={{ backgroundColor: '#7a2430', borderColor: '#7a2430', width: 'auto', padding: '0.6rem 1.5rem' }}
+                                style={{ backgroundColor: '#111927', borderColor: '#111927', width: 'auto', padding: '0.6rem 1.5rem' }}
                                 onClick={() => navigate('/play')}
                             >
                                 TIẾP TỤC VÀO VÁN CHƠI
@@ -337,28 +399,27 @@ export default function PickTeam() {
                                         transform: `rotate(${team.rotate})`,
                                         opacity: taken ? 0.45 : 1,
                                         filter: taken ? 'grayscale(1)' : 'none',
+                                        boxShadow: '0 4px 12px rgba(28,25,23,0.05)',
                                     }}
                                 >
                                     <div className="pt-card-body">
                                         <span
                                             className="material-symbols-outlined pt-card-icon"
-                                            style={{ color: team.color, fontVariationSettings: "'FILL' 1" }}
+                                            style={{ color: team.color, fontVariationSettings: "'FILL' 1", fontSize: 'clamp(36px, 4vw, 56px)' }}
                                         >
                                             {team.icon}
                                         </span>
-                                        <h2 className="pt-card-name">{team.name}</h2>
-                                        <hr className="pt-card-divider" />
-                                        <p className="pt-card-desc">{team.desc}</p>
+                                        <h2 className="pt-card-name" style={{ fontSize: 'clamp(13px, 1.2vw, 16px)', lineHeight: '1.2', marginBottom: '0.5rem' }}>{team.name}</h2>
+                                        <div style={{ flex: 1, minHeight: 0 }} />
+                                        <button
+                                            className="pt-join-btn"
+                                            style={{ backgroundColor: team.color, borderColor: team.color, cursor: taken ? 'not-allowed' : 'pointer' }}
+                                            disabled={!isSupabaseConfigured || joining || taken}
+                                            onClick={() => handleDirectJoin(team)}
+                                        >
+                                            {taken ? 'ĐÃ CÓ NGƯỜI CHỌN' : joining ? 'ĐANG VÀO...' : 'THAM GIA'}
+                                        </button>
                                     </div>
-
-                                    <button
-                                        className="pt-join-btn"
-                                        style={{ backgroundColor: team.color, borderColor: team.color, cursor: taken ? 'not-allowed' : 'pointer' }}
-                                        disabled={!isSupabaseConfigured || joining || taken}
-                                        onClick={() => handleDirectJoin(team)}
-                                    >
-                                        {taken ? 'ĐÃ CÓ NGƯỜI CHỌN' : joining ? 'ĐANG VÀO...' : 'THAM GIA'}
-                                    </button>
                                 </article>
                             )
                         })}

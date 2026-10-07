@@ -1,6 +1,6 @@
 # 🎮 Hướng dẫn trò chơi — THỬ VẬN MAY
 
-> Trò chơi thuyết trình lịch sử Đảng — Đại hội VI (1986) → Đại hội VIII (1996) → Đại hội IX (2001) → 2006
+> Trò chơi thuyết trình Chủ nghĩa xã hội khoa học — Gia đình Việt Nam trong thời kỳ quá độ lên chủ nghĩa xã hội
 
 ---
 
@@ -10,7 +10,8 @@
 |-----------|----------|
 | Số lượng đội | **2–7 đội** (chọn ở `/pin`, mặc định 7 — phòng dùng N đội đầu: Đỏ, Xanh, Vàng, Tím, Cam, Hồng, Lam) |
 | Số lượng lá bài | **35 lá** (xáo ngẫu nhiên mỗi ván) |
-| Số câu hỏi | **35 câu** |
+| Số câu hỏi | **35 câu** — mỗi câu ứng đúng 1 lá, không lặp trong cùng một ván |
+| Chủ đề câu hỏi | **Gia đình Việt Nam trong thời kỳ quá độ lên chủ nghĩa xã hội** |
 | Thời gian trả lời | **15 giây** mỗi câu (trên màn hình Play) |
 | Mã PIN | `1986` |
 
@@ -44,13 +45,14 @@ phải vào `/pin`.
 
 ---
 
-## 🃏 3 loại câu hỏi
+## 🃏 Câu hỏi
 
-| Mã | Tên | Màu | Số câu | Chủ đề |
-|----|-----|-----|--------|--------|
-| **L** | Lý luận | 🔴 `#7A2430` | 8 câu | Đường lối Đổi mới, Đại hội VIII, IX |
-| **S** | Số liệu thống kê | 🔵 `#1F4E66` | 8 câu | GDP, tăng trưởng, thống kê kinh tế |
-| **V** | Vận dụng hiện nay | 🟢 `#3F5D45` | 7 câu | Nghị quyết 57, 68, mục tiêu chuyển đổi số |
+Bộ câu hỏi chỉ có **MỘT nhóm** (không còn chia L / S / V) và **không có phần giải thích** —
+mỗi câu chỉ gồm câu hỏi, 4 đáp án A–D và đáp án đúng.
+
+| Mã | Tên nhóm | Màu | Số câu | Chủ đề |
+|----|----------|-----|--------|--------|
+| **G** | Gia đình thời kỳ quá độ | 🔴 `#7A2430` | 35 câu | Biến đổi của gia đình Việt Nam, quan hệ & người chủ gia đình, xây dựng gia đình văn hóa |
 
 ---
 
@@ -106,9 +108,11 @@ Trả lời đúng luôn dẫn tới **Tầng 1** (chắc chắn có), rồi có
 Trả lời đúng
    │
    ▼
-[TẦNG 1 — luôn luôn] Host bấm "Tung xúc xắc may mắn"
-   → tung xúc xắc 3D, CỘNG NGAY điểm theo mặt xúc xắc: 100 / 200 / 300 /
-     400 / 500 / 600 (mỗi mặt 1 giá trị, tăng đều)
+[TẦNG 1 — luôn luôn] Popup tung xúc xắc hiện NGAY trên điện thoại đội vừa
+   trả lời đúng (Play), đồng thời Host thấy lá "Rút Điểm May Mắn" với nút
+   "🎲 Tung hộ". Khi đội (hoặc Host) tung → animation xúc xắc 3D chạy trên
+   Host, CỘNG NGAY điểm theo mặt xúc xắc: 100 / 200 / 300 / 400 / 500 / 600
+   (mỗi mặt 1 giá trị, tăng đều)
    ▼
 [TẦNG 2 — 50/50 ngẫu nhiên] Có "Cơ Hội May Mắn" xuất hiện không?
    ├─ 50% KHÔNG → hết lượt, chuyển lượt chọn lá cho đội kế tiếp

@@ -9,6 +9,8 @@ const SOUNDS = {
   "card-flip": { src: "/sound/card-flip.mp3", volume: 1 },
   "dice-roll": { src: "/sound/dice-roll.mp3", volume: 1 },
   "effect-draw": { src: "/sound/effect-draw.mp3", volume: 0.9 },
+  // Stinger khi lá "Cướp Điểm" / "Đổi Điểm" bắt đầu lật ra (Host.jsx drawEffect)
+  "coin-drop": { src: "/sound/universfield-coin-drop-229314.mp3", volume: 0.9 },
   steal: { src: "/sound/steal.mp3", volume: 1 },
   victory: { src: "/sound/victory/victory.mp3", volume: 1 },
   "victory-appear": { src: "/sound/victory/appear.mp3", volume: 0.9 },

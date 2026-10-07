@@ -8,6 +8,7 @@ import {
   EFFECT_DEFINITIONS,
   getCardByNumber,
   normalizeTeamCount,
+  QUESTION_CAT,
   shuffle,
 } from "../game/catalog";
 import {
@@ -69,14 +70,34 @@ function computeAnswerPatch(state, teams, optionIdx) {
 
   if (optionIdx === card.correct) {
     optionStates[optionIdx] = "correct";
+    // Tầng 1 — vào thẳng phase xúc xắc, không dừng ở "explaining" chờ Host
+    // bấm "Tung xúc xắc may mắn" nữa: popup tung xúc xắc hiện NGAY trên điện
+    // thoại đội vừa trả lời đúng, đồng thời Host thấy lá "Rút Điểm May Mắn"
+    // với nút "🎲 Tung hộ" (EffectCard).
+    const effectDef = EFFECT_DEFINITIONS.find((d) => d.type === "points");
     return {
       kind: "correct",
       patch: {
         ...state,
         option_states: optionStates,
-        phase: "explaining",
-        show_explain: true,
+        phase: "resolving_effect",
         answer_submission_team_key: state.answering_team_key,
+        show_effect: true,
+        show_dice: true,
+        effect_type: "points_base",
+        effect_icon: effectDef?.icon ?? "🎲",
+        effect_label: "Rút Điểm May Mắn",
+        effect_desc: effectDef?.desc ?? "Tung xúc xắc để nhận điểm.",
+        effect_team_idx: Number.isInteger(state.answering_team_idx)
+          ? state.answering_team_idx
+          : 0,
+        effect_result: null,
+        effect_revealed: true,
+        show_eff_continue: false,
+        eff_body_buttons: "dice",
+        dice_rolling: false,
+        dice_value: null,
+        dice_result_visible: false,
       },
     };
   }
@@ -93,7 +114,6 @@ function computeAnswerPatch(state, teams, optionIdx) {
         ...state,
         option_states: optionStates,
         phase: "closing_card",
-        show_explain: true,
         answer_submission_team_key: null,
       },
     };
@@ -136,7 +156,6 @@ function computeTimeoutAdvance(state, teams) {
         ...state,
         option_states: optionStates,
         phase: "closing_card",
-        show_explain: true,
         answer_submission_team_key: null,
       },
     };
@@ -193,6 +212,16 @@ export default function Host() {
   const flipSoundTimerRef = useRef(null);
   const [drawSeq, setDrawSeq] = useState(0);
 
+  // Toast hướng dẫn không chặn thao tác — mục đích duy nhất là thay cho "bấm
+  // thẻ mà không có gì xảy ra": giải thích lý do thẻ bị khoá (đang giữa lượt /
+  // lá đã mở) hoặc báo host rằng lượt kẹt đã được tự đóng khi mở trang.
+  const [cardHint, setCardHint] = useState(null);
+  useEffect(() => {
+    if (!cardHint) return undefined;
+    const id = setTimeout(() => setCardHint(null), 3800);
+    return () => clearTimeout(id);
+  }, [cardHint]);
+
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
@@ -235,6 +264,8 @@ export default function Host() {
         setTeams((prev) => (sameList(prev, data.teams) ? prev : data.teams));
         setEvents((prev) => (sameList(prev, data.events) ? prev : data.events));
         setLoading(false);
+        // Mạng vừa hồi phục → xoá màn hình lỗi (poll 5s sẽ gọi lại ở đây).
+        setError(null);
       } catch (err) {
         setError(err.message || String(err));
       }
@@ -255,6 +286,33 @@ export default function Host() {
     },
     [reload]
   );
+
+  // Chỉ lùa một lần mỗi lần mount trang: nếu game được resume lại với một câu
+  // hỏi đang kẹt ở phase "closing_card" (đáp án đã lộ nhưng host bị refresh/đóng
+  // tab trước khi nhấn "Tiếp tục"), tự đóng lá đó về "selecting_card" để bộ bài
+  // bấm được ngay thay vì im lặng. Chỉ áp dụng cho closing_card — không có điểm
+  // / hiệu ứng đang chờ bốc nên tự đóng không mất gì. Các phase khác (explaining,
+  // resolving_effect…) đang chờ host quyết định → không tự ý đóng.
+  const bootRecoveryRef = useRef(false);
+  useEffect(() => {
+    if (bootRecoveryRef.current) return undefined;
+    const s = stateRef.current;
+    const tms = teamsRef.current;
+    if (!gameId || !s?.phase || !tms.length) return undefined;
+    bootRecoveryRef.current = true;
+    if (s.phase !== "closing_card") return undefined;
+    if (s.deadline_at && new Date(s.deadline_at).getTime() > Date.now()) return undefined;
+    const next = closeCard(s, tms);
+    saveGameState(gameId, s.revision, next, s)
+      .then(() => {
+        playSound("card-flip");
+        setCardHint(
+          `Đã tự đóng lượt câu hỏi còn dở (Lá số ${s.active_card_num ?? ""}) — có thể bốc lá mới.`
+        );
+      })
+      .catch(handleSaveConflict);
+    return undefined;
+  }, [gameId, state, handleSaveConflict]);
 
   // Mở khoá thao tác hiệu ứng cho điện thoại người chơi: khi animation lật bài
   // kết thúc (revealingEffect về false) mà cờ effect_revealed chưa bật thì lưu
@@ -279,10 +337,14 @@ export default function Host() {
     return () => clearTimeout(id);
   }, [state?.show_effect, state?.effect_revealed, revealingEffect, gameId, handleSaveConflict]);
 
-  // Bootstrap: resume or create a game.
-  useEffect(() => {
-    if (!isSupabaseConfigured) return undefined;
-    let cancelled = false;
+  // Bootstrap: resume or create a game. Tách thành hàm để cả nút "Thử lại"
+  // lẫn màn tự hồi phục đều gọi lại được — trước đây khi bootstrap lỗi (mất
+  // mạng lúc tải trang) thì gameId = null nên "Thử lại" là no-op.
+  const cancelledRef = useRef(false);
+  const boot = useCallback(() => {
+    if (!isSupabaseConfigured) return;
+    setLoading(true);
+    setError(null);
     (async () => {
       try {
         let id = localStorage.getItem(HOST_GAME_ID_KEY);
@@ -322,21 +384,44 @@ export default function Host() {
           pin = existing ? (existing.pin ?? null) : gamePin;
           localStorage.setItem(HOST_GAME_ID_KEY, id);
         }
-        if (!cancelled) {
+        if (!cancelledRef.current) {
           setGameId(id);
           setGamePin(pin);
         }
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelledRef.current) {
           setError(err.message || String(err));
           setLoading(false);
         }
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  useEffect(() => {
+    cancelledRef.current = false;
+    if (!isSupabaseConfigured) return undefined;
+    const t = setTimeout(boot, 0);
+    return () => {
+      clearTimeout(t);
+      cancelledRef.current = true;
+    };
+  }, [boot]);
+
+  // Mất kết nối (bootstrap lỗi hoặc poll/reload lỗi đều fall vào `error`):
+  // tự xoá error và chạy lại sau 5s để trang sống lại khi mạng hồi phục —
+  // không cần bấm "Thử lại". Poll 5s cũng đã tự hồi phục khi reload thành
+  // công (setError(null) trong reload), hiệu ứng này chỉ lo trường hợp
+  // bootstrap chưa có gameId.
+  const retryNow = useCallback(() => {
+    setError(null);
+    if (gameId) reload?.schedule();
+    else boot();
+  }, [gameId, reload, boot]);
+  useEffect(() => {
+    if (!error) return undefined;
+    const id = setTimeout(retryNow, 5000);
+    return () => clearTimeout(id);
+  }, [error, retryNow]);
 
   // Realtime subscription.
   useEffect(() => {
@@ -478,7 +563,9 @@ export default function Host() {
     setDrawSeq((n) => n + 1);
 
     // Sound: tiếng rút lá ngay khi bấm, tiếng lật đúng lúc mặt trước hé mở,
-    // kèm stinger riêng cho hai hiệu ứng "chấn động" (mất hết điểm / reset).
+    // kèm stinger riêng theo từng loại hiệu ứng: hai lá "chấn động"
+    // (mất hết điểm / reset) và hai lá liên quan tiền (cướp điểm / đổi điểm —
+    // tiếng coin drop ngay khi lá bắt đầu lật ra).
     playSound("effect-draw");
     if (flipSoundTimerRef.current) clearTimeout(flipSoundTimerRef.current);
     flipSoundTimerRef.current = setTimeout(() => {
@@ -487,6 +574,8 @@ export default function Host() {
         setTimeout(() => playSound("meme-vine-boom"), 350);
       } else if (effect.type === "reset") {
         setTimeout(() => playSound("meme-bell"), 350);
+      } else if (effect.type === "steal" || effect.type === "swap") {
+        setTimeout(() => playSound("coin-drop"), 350);
       }
     }, FLIP_AT_MS);
 
@@ -764,9 +853,22 @@ export default function Host() {
   const openCard = async (num) => {
     const s = stateRef.current;
     const tms = teamsRef.current;
-    if (!s || s.phase !== "selecting_card") return;
+    if (!s) return;
+    if (s.phase !== "selecting_card") {
+      // Không im lặng: báo rõ lý do thẻ đang bị khoá để khỏi ngỡ là bug.
+      setCardHint(
+        s.active_card_num
+          ? `Đang giữa lượt câu hỏi Lá số ${s.active_card_num} — hãy xử lý câu hỏi đang mở trước.`
+          : "Đang xử lý lượt hiện tại — chờ chuyển về lượt chọn lá trước."
+      );
+      return;
+    }
     const card = getCardByNumber(s.card_deck, num);
-    if (!card || (s.used_card_numbers || []).includes(num)) return;
+    if (!card) return;
+    if ((s.used_card_numbers || []).includes(num)) {
+      setCardHint(`Lá số ${num} đã được mở rồi.`);
+      return;
+    }
     playSound("card-flip");
     const startIdx = Number.isInteger(s.answering_team_idx) ? s.answering_team_idx : 0;
     const order = tms.map((_, i) => (startIdx + i) % tms.length);
@@ -784,7 +886,6 @@ export default function Host() {
         answer_submission_team_key: null,
         option_states: card.options.map(() => ""),
         attempt_label: firstTeam?.name ?? "",
-        show_explain: false,
         deadline_at: computeDeadlineAt(),
         revision: s.revision + 1,
       }, s);
@@ -1002,7 +1103,6 @@ export default function Host() {
         option_states: [],
         attempt_label: "",
         deadline_at: null,
-        show_explain: false,
         show_effect: false,
         effect_type: null,
         effect_icon: null,
@@ -1048,16 +1148,13 @@ export default function Host() {
             <h1>Lỗi kết nối</h1>
             <div className="sub" style={{ marginTop: 6 }}>
               {error}
+              <br />
+              <span className="masthead-retry-hint">
+                Sẽ tự thử lại sau 5 giây khi mạng hồi phục…
+              </span>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setError(null);
-                if (gameId) reload?.schedule();
-              }}
-              style={{ marginTop: 12 }}
-            >
-              Thử lại
+            <button type="button" onClick={retryNow} style={{ marginTop: 12 }}>
+              Thử lại ngay
             </button>
           </div>
         </div>
@@ -1069,108 +1166,267 @@ export default function Host() {
 
   const activeCard = state.active_card_num ? getCardByNumber(state.card_deck, state.active_card_num) : null;
   const selectingTeam = teams[state.answering_team_idx ?? 0] ?? teams[0];
-  const openedCount = (state.used_card_numbers || []).length;
   const totalCards = state.card_deck.length;
 
   return (
     <div className="host-wrap">
-      <div className="masthead">
-        <div>
-          <h1>Thử Vận May</h1>
-          <div className="sub">Xúc xắc · Lá phép · 35 câu hỏi</div>
+      {/* Toast hướng dẫn (không chặn): lý do thẻ bị khoá / lượt kẹt đã tự đóng */}
+      {cardHint && (
+        <div className="deco-toast" role="status" data-purpose="host-toast">
+          <span className="material-symbols-outlined deco-toast-icon">info</span>
+          <span className="deco-toast-text">{cardHint}</span>
         </div>
-        <div className="stamp">
-          May
-          <br />
-          Mắn
+      )}
+
+      {/* ========== HEADER ART DECO (Task 2) ========== */}
+      <header className="art-deco-header">
+        {/* Crest chưởng hoàng gia */}
+        <div className="deco-crest">
+          <div className="deco-crest-inner">
+            <div className="deco-crest-frame" />
+            <span className="material-symbols-outlined text-gold-deco deco-crown">crown</span>
+          </div>
         </div>
-      </div>
 
-      <div className="legend">
-        <span style={{ background: CAT_COLOR.L }}>{CAT_NAME.L}</span>
-        <span style={{ background: CAT_COLOR.S }}>{CAT_NAME.S}</span>
-        <span style={{ background: CAT_COLOR.V }}>{CAT_NAME.V}</span>
-      </div>
+        {/* Tiêu đề chính */}
+        <div className="deco-title-block">
+          <h1 className="font-playfair deco-title">THỬ VẬN MAY</h1>
+          <div className="deco-subtitle font-marcellus">XÚC XÁC · LÁ PHÉP · 35 CÂU HỎI</div>
+        </div>
 
-      <div className="legend effects">
-        {EFFECT_DEFINITIONS.map((def) => (
-          <span key={def.type}>
-            <b style={{ background: EFFECT_COLORS[def.type] }} />
-            {def.icon} {def.label}
+        {/* Badge giải đấu */}
+        <div className="deco-badge">
+          <span className="deco-badge-star">★</span>
+          <span className="deco-badge-text">GRAND TOURNAMENT</span>
+          <span className="deco-badge-star">★</span>
+        </div>
+
+      </header>
+
+      {/* ===== TOOLBAR: badge đếm lá + quick-action bar (Task 3) ===== */}
+      <div className="deco-toolbar">
+        {/* Badge trái: số lượng lá */}
+        <div className="deco-card-count-badge">
+          <span className="deco-card-count-mark">◆</span>
+          <span className="deco-card-count-text">
+            <span className="deco-card-count-num font-playfair">{totalCards}</span>
+            <span className="deco-card-count-label">Lá Thẻ Bài</span>
           </span>
+          <span className="deco-card-count-hint font-marcellus">Bấm thẻ vàng để mở</span>
+        </div>
+
+        {/* Legend nhóm câu hỏi + legend 9 hiệu ứng — chip trắng viền gold.
+            Bộ câu hỏi chỉ còn MỘT nhóm (chủ đề gia đình trong thời kỳ quá độ)
+            nên chỉ có đúng 1 chip nhóm. */}
+        <div className="deco-legend-category">
+          <span className="deco-category-chip" style={{ background: CAT_COLOR[QUESTION_CAT], color: '#fff' }}>
+            {CAT_NAME[QUESTION_CAT]}
+          </span>
+        </div>
+
+        <div className="deco-legend-effects">
+          {EFFECT_DEFINITIONS.map((def) => (
+            <span key={def.type} className="deco-effect-chip">
+              <span className="deco-effect-dot" style={{ background: EFFECT_COLORS[def.type] }} />
+              <span className="deco-effect-label">
+                {def.icon} {def.label}
+              </span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Quick-action bar: 9 nút test effect → pill trắng viền #c5ad7a */}
+      <div className="deco-quick-actions" data-purpose="quick-actions">
+        {EFFECT_DEFINITIONS.map((def) => (
+          <button
+            key={def.type}
+            type="button"
+            className="deco-quick-action-btn"
+            onClick={() => pickAndApplyEffect(def.type)}
+            disabled={state.phase !== "selecting_card" && state.phase !== "explaining"}
+            title={`Test hiệu ứng: ${def.label}`}
+          >
+            <span className="deco-quick-action-dot" style={{ background: EFFECT_COLORS[def.type] }} />
+            <span className="deco-quick-action-label">
+              {def.icon} {def.label}
+            </span>
+          </button>
         ))}
       </div>
 
       <div className="board">
         {state.card_deck.map((c) => {
           const used = (state.used_card_numbers || []).includes(c.num);
+          // Biểu tượng góc trên xoay vòng theo (n-1) % 3: ◆ / ✦ / ★
+          const cornerIdx = (c.num - 1) % 3;
+          const cornerMark = cornerIdx === 0 ? '◆' : cornerIdx === 1 ? '✦' : '★';
           return (
             <div
               key={c.num}
-              className={"ncard" + (used ? " used" : "")}
+              className={"art-deco-token ncard" + (used ? " used" : "")}
               style={{ "--cat-color": CAT_COLOR[c.cat] }}
               onClick={() => !used && openCard(c.num)}
+              role="button"
+              aria-label={`Thẻ số ${c.num}`}
+              aria-disabled={used}
             >
-              {used ? (
-                <>
-                  <div className="ncard-done">✓</div>
-                  <div className="ncard-cat">Đã mở</div>
-                </>
-              ) : (
-                <>
-                  <div className="ncard-num">{c.num}</div>
-                  <div className="ncard-cat">{CAT_NAME[c.cat]}</div>
-                </>
+              {/* Góc trên: số nhỏ + ký hiệu */}
+              <span className="art-deco-token-corner">
+                <span className="art-deco-token-corner-mark">{cornerMark}</span>
+              </span>
+
+              {/* Số lớn chính giữa */}
+              <span className="art-deco-token-num">{c.num}</span>
+
+              {/* Góc dưới: bản sao rotate-180 */}
+              <span className="art-deco-token-corner art-deco-token-corner-bottom">
+                <span className="art-deco-token-corner-mark">{cornerMark}</span>
+              </span>
+
+              {/* Kết quả sau khi mở */}
+              {used && (
+                <span className="art-deco-token-done" title="Đã mở">✓</span>
               )}
             </div>
           );
         })}
-      </div>
+      </div>        <div className="panel">
+        {/* ===== SCOREBOARD BẢNG ĐIỂM XẾP HẠNG (Task 5) ===== */}
+        <div className="art-deco-scoreboard">
+          <div className="scoreboard-header">
+            <div className="scoreboard-icon">
+              <span className="material-symbols-outlined text-gold-deco">workspace_premium</span>
+            </div>
+            <h2 className="scoreboard-title font-playfair">BẢNG ĐIỂM XẾP HẠNG</h2>
+            <div className="scoreboard-badge" data-team-count={teams.length}>
+              <span className="scoreboard-badge-num font-playfair">{teams.length}</span>
+              <span className="scoreboard-badge-text">Đội</span>
+            </div>
+          </div>
 
-      <div className="panel">
-        <div className="teams">
-          <h2>Bảng điểm</h2>
-          {/* Display order: highest score first. `i` stays the team's index in
-              the underlying teams array so renaming and the active highlight
-              keep working. */}
+          <div className="scoreboard-divider" />
+
+          {/* Row đội: giữ rankedTeams, input sửa tên, .active = lượt chơi */}
           {rankedTeams
-            .map(({ t, i }) => (
-              <div key={t.team_key} className={"team-row" + (i === (state.answering_team_idx ?? 0) ? " active" : "")}>
-                <div className="team-color" style={{ background: t.color }} />
-                <input type="text" value={t.name} onChange={(e) => updateTeamName(i, e.target.value)} />
-                <span className="team-score">{t.score}</span>
-              </div>
-            ))}
+            .map(({ t, i }) => {
+              const isCurrentTurn = i === (state.answering_team_idx ?? 0);
+              const rank = i + 1;
+              return (
+                <div
+                  key={t.team_key}
+                  className={"scoreboard-row" + (isCurrentTurn ? " active" : "")}
+                >
+                  {/* Rank badge tròn */}
+                  <span className={"scoreboard-rank-badge rank-" + rank}>
+                    {rank}
+                  </span>
+
+                  {/* Thanh màu dọc team */}
+                  <span className="scoreboard-team-bar" style={{ background: t.color }} />
+
+                  {/* Tên đội + input sửa */}
+                  <input
+                    type="text"
+                    className="scoreboard-team-name font-bold"
+                    value={t.name}
+                    onChange={(e) => updateTeamName(i, e.target.value)}
+                    aria-label="Tên đội"
+                  />
+
+                  {/* Score Playfair màu team */}
+                  <span className="scoreboard-score font-playfair" style={{ color: t.color }}>
+                    {t.score}
+                    <span className="scoreboard-score-suffix">pts</span>
+                  </span>
+
+                  {/* Badge lượt chơi hiện tại (chỉ khi .active) */}
+                  {isCurrentTurn && (
+                    <span className="scoreboard-current-turn-badge">
+                      Lượt chơi hiện tại
+                    </span>
+                  )}
+                </div>
+              );
+            })}
         </div>
 
-        <div className="controls">
-          <h2>Điều khiển ván chơi</h2>
-          <div className="turn-label">Lượt chọn lá bài</div>
-          <div className="turn-name">{selectingTeam?.name}</div>
-          <div className="progress">
-            {openedCount}/{totalCards} lá đã mở
+        {/* ===== GAME CONTROLLER ĐIỀU KHIỂN VÁN CHƠI (Task 6) ===== */}
+        <div className="art-deco-controller art-deco-frame">
+          {/* Header section */}
+          <div className="controller-header">
+            <div className="controller-header-icon">
+              <span className="material-symbols-outlined text-gold-deco">tune</span>
+            </div>
+            <h2 className="controller-header-title font-marcellus">
+              ĐIỀU KHIỂN VÁN CHƠI
+            </h2>
           </div>
-          <div className="room-pin">
-            PIN phòng: <b>{gamePin ?? "…"}</b>
-          </div>
-          <button className="host-btn ghost" onClick={finishGame}>
-            Kết thúc &amp; xếp hạng
-          </button>
-          <button className="host-btn ghost" onClick={resetGame}>
-            Ván mới
-          </button>
 
-          <div className="bgm-controls">
-            <span className="bgm-label">🎵 Nhạc nền</span>
+          <div className="controller-divider" />
+
+          {/* ═══ Card Lượt chơi (dark metal double gold) ═══ */}
+          <div className="host-metal-card turn-card">
+            <div className="turn-showcase">
+              <div className="turn-showcase-icon">
+                <span className="material-symbols-outlined" style={{ color: 'rgba(229,190,101,0.7)', fontSize: '22px' }}>schedule</span>
+              </div>
+              <div className="turn-showcase-label font-marcellus">
+                LƯỢT BỐC LÁ BÀI HIỆN TẠI
+              </div>
+              <div className="turn-showcase-team">
+                <span className="turn-showcase-dot" style={{ background: selectingTeam?.color ?? 'var(--gold-primary)' }} />
+                <span className="turn-showcase-name font-playfair">{selectingTeam?.name ?? '—'}</span>
+              </div>
+              <div className="turn-showcase-crest">
+                <span className="material-symbols-outlined" style={{ opacity: 0.05, fontSize: '72px' }}>casino</span>
+              </div>
+            </div>
+          </div>
+
+          {/* ═══ Card Mã PIN (ivory metal double gold) ═══ */}
+          <div className="host-metal-card pin-card">
+            <div className="pin-vault">
+              <div className="pin-vault-label-row">
+                <span className="material-symbols-outlined text-gold-deco pin-vault-icon" style={{ fontSize: '18px' }}>vpn_key</span>
+                <span className="pin-vault-label font-marcellus">MÃ PIN PHÒNG / BẢO MẠT MÁY CHỦ</span>
+              </div>
+              <div className="pin-vault-value">
+                <span className="pin-vault-prefix font-marcellus">PIN:</span>
+                <span className="pin-vault-code font-playfair">{gamePin ?? '…'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Nút giải đấu */}
+          <div className="controller-actions">
+            <button className="controller-btn-primary" onClick={finishGame}>
+              <span className="material-symbols-outlined controller-btn-icon">workspace_premium</span>
+              <span className="controller-btn-text">Kết Thúc &amp; Xếp Hạng Giải Đấu</span>
+            </button>
+            <button className="controller-btn-ghost" onClick={resetGame}>
+              <span className="material-symbols-outlined controller-btn-icon">refresh</span>
+              <span className="controller-btn-text">Khởi Tạo Ván Mới</span>
+            </button>
+          </div>
+
+          {/* BGM block */}
+          <div className="bgm-block">
+            <div className="bgm-block-inner">
+              <span className="material-symbols-outlined bgm-block-icon" style={{ fontSize: '20px' }}>volume_up</span>
+              <span className="bgm-block-label font-marcellus">NHẠC NỀN</span>
+            </div>
             <button
               type="button"
-              className={"host-btn ghost bgm-toggle" + (bgm.enabled ? " on" : "")}
+              className={"bgm-toggle-btn" + (bgm.enabled ? " on" : "")}
               onClick={bgm.toggle}
             >
-              {bgm.enabled ? "Tắt" : "Bật"}
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                {bgm.enabled ? 'volume_up' : 'volume_off'}
+              </span>
+              <span className="bgm-toggle-text">{bgm.enabled ? 'Đang Bật' : 'Đang Tắt'}</span>
             </button>
-            <div className="bgm-volume">
-              <button type="button" className="host-btn ghost bgm-vol-btn" onClick={bgm.decreaseVolume} disabled={bgm.volume <= 0}>−</button>
+            <div className="bgm-slider-wrap">
               <input
                 type="range"
                 min="0"
@@ -1178,80 +1434,68 @@ export default function Host() {
                 step="0.05"
                 value={bgm.volume}
                 onChange={(e) => bgm.setVolume(Number(e.target.value))}
-                className="bgm-slider"
+                className="bgm-art-slider"
+                aria-label="Th控件 nhạc nền"
               />
-              <button type="button" className="host-btn ghost bgm-vol-btn" onClick={bgm.increaseVolume} disabled={bgm.volume >= 1}>+</button>
+              <span className="bgm-volume-pct font-marcellus">{Math.round(bgm.volume * 100)}%</span>
             </div>
           </div>
-          <details className="test-effects">
-            <summary>🧪 Test hiệu ứng (bốc lá chỉ định)</summary>
-            {/* pickAndApplyEffect không tự canh phase (nó cần chạy được giữa
-                Tầng 2 khi phase đã là resolving_effect) — nút test phải tự
-                canh lấy, chỉ cho bốc khi không có vòng nào đang dở dang, nếu
-                không Host bấm nhầm lúc đang mở câu hỏi sẽ đè mất state. */}
-            {state.phase !== "selecting_card" && state.phase !== "explaining" && (
-              <div className="hint" style={{ marginTop: 8 }}>
-                Chỉ dùng được khi chưa mở câu hỏi hoặc vừa trả lời đúng (không dùng giữa lượt đang dở dang).
-              </div>
-            )}
-            <div className="test-grid">
-              {EFFECT_DEFINITIONS.map((def) => (
-                <button
-                  key={def.type}
-                  type="button"
-                  className="host-btn ghost"
-                  disabled={state.phase !== "selecting_card" && state.phase !== "explaining"}
-                  onClick={() => pickAndApplyEffect(def.type)}
-                >
-                  {def.icon} {def.label}
-                </button>
-              ))}
-            </div>
-          </details>
-          <div className="hint">
-            Đội tới lượt chọn 1 lá bài số, sau đó chọn 1 trong 4 đáp án trên thiết bị của mình. Trả lời đúng → luôn
-            tung xúc xắc nhận điểm, có 50% thêm cơ hội chọn nhận 200đ hoặc thử vận may bốc 1 lá phép. Trả lời sai →
-            quyền trả lời chuyển sang đội tiếp theo; nếu 3 đáp án sai (hoặc hết giờ), đáp án đúng được tiết lộ. Sau
-            mỗi lượt, quyền chọn lá bài mới luôn xoay vòng sang đội kế tiếp theo thứ tự cố định.
-          </div>
+
+    
+         
         </div>
       </div>
 
-      {/* Question Card Overlay */}
-      <div className={"overlay" + (activeCard ? " show" : "")}>
-        {activeCard && (
-          <div className={"card cat-" + activeCard.cat}>
-            <div className="card-eyebrow">
-              {CAT_NAME[activeCard.cat]} · Lá số {activeCard.num}
-            </div>
-            <div className="card-q">{activeCard.q}</div>
-            <div className="attempt-label">Lượt trả lời: {state.attempt_label}</div>
 
-            <div className="options">
+      {/* ===== QUESTION OVERLAY ART DECO (Task 7) ===== */}
+      <div className="art-deco-overlay" data-show={activeCard ? "true" : "false"}>
+        {activeCard && (
+          <div className="art-deco-question-card art-deco-frame">
+            {/* Corner inlay */}
+            <span className="deco-corner deco-corner-tl" />
+            <span className="deco-corner deco-corner-tr" />
+            <span className="deco-corner deco-corner-bl" />
+            <span className="deco-corner deco-corner-br" />
+
+            {/* Eyebrow chip dark */}
+            <div className="question-eyebrow">
+              <span className="question-eyebrow-category">{CAT_NAME[activeCard.cat]}</span>
+              <span className="question-eyebrow-sep">·</span>
+              <span className="question-eyebrow-num">Lá số {activeCard.num}</span>
+            </div>
+
+            <div className="question-title">{activeCard.q}</div>
+
+            <div className="question-attempt-label">
+              <span>Lượt trả lời:</span>
+              <span>{state.attempt_label}</span>
+            </div>
+
+            <div className="question-options">
               {activeCard.options.map((opt, i) => (
-                <div
+                <button
                   key={i}
-                  className={"opt-btn" + (state.option_states[i] ? " " + state.option_states[i] : "")}
-                  style={{ cursor: "default", opacity: state.option_states[i] ? 1 : 0.75 }}
+                  className={"question-opt-btn" + (state.option_states[i] ? " " + state.option_states[i] : "")}
+                  disabled={true}
+                  style={{ opacity: state.option_states[i] ? 1 : 0.75 }}
                 >
                   {opt}
                   {state.option_states[i] === "correct" && " ✓"}
                   {state.option_states[i] === "wrong" && " ✗"}
-                </div>
+                </button>
               ))}
             </div>
 
             {state.phase === "answering" && (
-              <details style={{ marginTop: 12, fontSize: 13, color: "#887272" }}>
-                <summary style={{ cursor: "pointer" }}>Nhập thủ công (khi Play không kết nối)</summary>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+              <details className="question-manual-entry">
+                <summary>Nhập thủ công (khi Play không kết nối)</summary>
+                <div className="question-manual-grid">
                   {activeCard.options.map((opt, i) => (
                     <button
                       key={i}
-                      className={"opt-btn" + (state.option_states[i] ? " " + state.option_states[i] : "")}
+                      className={"question-opt-btn" + (state.option_states[i] ? " " + state.option_states[i] : "")}
                       disabled={state.option_states[i] !== ""}
                       onClick={() => applyAnswer(i)}
-                      style={{ fontSize: 13 }}
                     >
                       {String.fromCharCode(65 + i)}: {opt.substring(0, 30)}...
                     </button>
@@ -1260,19 +1504,18 @@ export default function Host() {
               </details>
             )}
 
-            <div className={"card-a" + (state.show_explain ? " show" : "")}>{activeCard.explain}</div>
-
             {state.phase === "explaining" && state.answer_submission_team_key && (
-              <div className="card-actions">
-                <button className="host-btn" onClick={startGuaranteedDiceRoll}>
+              <div className="question-actions">
+                <button className="question-btn-primary" onClick={startGuaranteedDiceRoll}>
+                  <span className="material-symbols-outlined question-btn-icon">casino</span>
                   Tung xúc xắc may mắn
                 </button>
               </div>
             )}
 
             {state.phase === "closing_card" && (
-              <div className="card-actions">
-                <button className="host-btn" onClick={continueAfterReveal}>
+              <div className="question-actions">
+                <button className="question-btn-ghost" onClick={continueAfterReveal}>
                   Tiếp tục
                 </button>
               </div>

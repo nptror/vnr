@@ -19,6 +19,7 @@ const STYLE = `
     margin-top: 1rem;
     transform: rotate(0.3deg);
     position: relative;
+    font-family: 'Lora', Georgia, serif;
   }
   .meme-panel.disabled { opacity: 0.5; pointer-events: none; }
 
@@ -30,20 +31,25 @@ const STYLE = `
     margin-bottom: 0.75rem;
   }
   .meme-panel-title {
-    font-family: 'Noto Serif', serif;
+    font-family: 'Lora', serif;
     font-size: 12px; font-weight: 700;
     letter-spacing: 0.1em; text-transform: uppercase;
     color: #554243;
     display: flex; align-items: center; gap: 0.5rem;
   }
+  /* Thẻ hoàn chỉnh — không còn nghiêng kiểu con dấu */
   .meme-stamp {
+    font-family: 'Lora', Georgia, serif;
     font-size: 10px; font-weight: 700;
-    letter-spacing: 0.08em; text-transform: uppercase;
-    color: #ba1a1a;
-    border: 1px dashed #ba1a1a;
-    padding: 1px 4px;
-    transform: rotate(-8deg);
-    opacity: 0.7;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: #5c131c;
+    background: #fcf9f2;
+    border: 2px solid #caa048;
+    border-radius: 3px;
+    padding: 4px 10px;
+    box-shadow: 1px 1px 0 rgba(136,114,114,0.3);
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   /* ── Folder tabs ── */
@@ -60,7 +66,7 @@ const STYLE = `
     border: 1px solid #dbc0c1;
     background: #fff;
     cursor: pointer;
-    font-family: 'Noto Serif', serif;
+    font-family: 'Lora', serif;
     font-size: 12px; font-weight: 600;
     color: #554243;
     white-space: nowrap;
