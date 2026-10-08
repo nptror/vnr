@@ -18,6 +18,12 @@ import catGive from '../assets/meme/other/gif_other/Cat Give GIF.webp'
 import catAngry from '../assets/meme/other/gif_other/cat-angry.webp'
 import catNo from '../assets/meme/other/gif_other/cat-no.webp'
 import catYes from '../assets/meme/other/gif_other/cat-yes.webp'
+import bibble from '../assets/meme/fun/gif_fun/Bibble_.png'
+import kucingScuba from '../assets/meme/fun/gif_fun/Kucing Scuba Scuba Cat Sticker – Kucing scuba Scuba cat Scuba dance – discover and share GIFs.gif'
+import sadGif from '../assets/meme/sad/gif_sad/1008-ezgif.com-gif-to-webp-converter.webp'
+import memesRandom from '../assets/meme/suprise/Memes Random🌈🤣.png'
+import faaaahhhh from '../assets/meme/suprise/FAAAAHHHHH 🫪🫪.png'
+import otherDownload from '../assets/meme/other/download.png'
 
 /**
  * Danh sách meme theo folder.
@@ -46,12 +52,17 @@ const MEME_FOLDERS = [
       { id: 'fun_hamster_dance', label: 'Hamster nhảy', file: hamsterDance },
       { id: 'fun_pug_dog_dancing', label: 'Cuộn tròn', file: pugDogDancing },
       { id: 'fun_rigby_cat', label: 'Liếm láp', file: rigbyCat },
+      { id: 'fun_cat_clapping', label: 'Mèo vỗ tay', file: 'https://media1.tenor.com/m/m3r_8NhxM9MAAAAd/cat-clapping-ai-cat-clapping.gif' },
+      { id: 'fun_dog_clapping', label: 'Chó vỗ tay', file: 'https://media1.tenor.com/m/Ty7UCE0vO4EAAAAC/dog-meme-white-dog.gif' },
+      { id: 'fun_bibble', label: 'Bibble', file: bibble },
+      { id: 'fun_kucing_scuba', label: 'Mèo scuba', file: kucingScuba },
     ],
   },
   {
     folder: { id: 'sad', name: 'Buồn bã', icon: '😢', soundPool: ['meme-bell'] },
     memes: [
       { id: 'sad1', label: 'Buồn', file: sad1 },
+      { id: 'sad_crying', label: 'Khóc lóc', file: sadGif },
     ],
   },
   {
@@ -61,6 +72,8 @@ const MEME_FOLDERS = [
       { id: 'suprise2', label: 'Ngạc nhiên 2', file: suprise2 },
       { id: 'suprise_cat_eating', label: 'Người ngoài hành tinh', file: catEating },
       { id: 'suprise_shark_wow', label: 'Cá mập', file: sharkWow },
+      { id: 'suprise_memes_random', label: 'Memes Random', file: memesRandom },
+      { id: 'suprise_faaaahhhh', label: 'Faaaahhhh', file: faaaahhhh },
     ],
   },
   {
@@ -72,6 +85,7 @@ const MEME_FOLDERS = [
       { id: 'other_cat_angry', label: 'Sinh vật bí ẩn', file: catAngry },
       { id: 'other_cat_no', label: 'Doge 1', file: catNo },
       { id: 'other_cat_yes', label: 'Doge 2', file: catYes },
+      { id: 'other_download', label: 'Tải về', file: otherDownload },
     ],
   },
 ]
